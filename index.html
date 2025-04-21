@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>MindAR Video Behind Business Card</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     body {
@@ -33,6 +33,15 @@
     #start-button.hidden {
       display: none;
     }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+      z-index: 0;
+    }
   </style>
 </head>
 <body>
@@ -47,6 +56,11 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
+
+      // Ensure correct renderer size
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+
       const anchor = mindarThree.addAnchor(0);
 
       // Load video
@@ -62,53 +76,34 @@
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
+      // Slightly larger than card
       const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // behind card
+      videoPlane.position.set(0, 0, -0.01); // behind the card
       anchor.group.add(videoPlane);
 
-      // Load card image
-      const cardTexture = new THREE.TextureLoader().load("card.JPG"); // check casing!
+      // Card image
+      const cardTexture = new THREE.TextureLoader().load("card.JPG");
       const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
       cardPlane.position.set(0, 0, 0.001); // in front of video
       anchor.group.add(cardPlane);
 
-      // Start AR
       await mindarThree.start();
 
-      // Attempt to autoplay
+      // Try autoplay, fallback to user interaction
       try {
         await video.play();
-        console.log("Video autoplayed successfully.");
       } catch (err) {
-        console.warn("Autoplay failed, waiting for user gesture.");
         const startButton = document.getElementById("start-button");
         startButton.classList.remove("hidden");
         startButton.addEventListener("click", async () => {
           await video.play();
-          console.log("Video started after user interaction.");
           startButton.classList.add("hidden");
         });
       }
-
-      // Fallback trigger: play on target found
-      anchor.onTargetFound = () => {
-        if (video.paused) {
-          video.play().then(() => {
-            console.log("Video started on target found.");
-          }).catch((e) => {
-            console.error("Error playing video on target found:", e);
-          });
-        }
-      };
-
-      anchor.onTargetLost = () => {
-        video.pause();
-        console.log("Video paused (target lost).");
-      };
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
@@ -121,5 +116,6 @@
   </script>
 </body>
 </html>
+
 
 
