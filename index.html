@@ -59,7 +59,6 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size and adjust on window resize
       const setSize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -70,7 +69,6 @@
       setSize();
       window.addEventListener('resize', setSize);
 
-      // Lighting for 3D models
       const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(hemiLight);
 
@@ -96,7 +94,7 @@
       const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      videoPlane.position.set(0, 0, -0.01);
       anchor.group.add(videoPlane);
 
       // Load card front image
@@ -104,29 +102,39 @@
       const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      cardPlane.position.set(0, 0, 0.001); // slightly in front of the video
+      cardPlane.position.set(0, 0, 0.001);
       anchor.group.add(cardPlane);
 
-      // Load GLB model (building)
-      const gltfLoader = new THREE.GLTFLoader();
-      gltfLoader.load("models/3floor.glb", (gltf) => {
-        const model = gltf.scene;
+      // Load GLB model safely with blob size check
+      fetch("models/3floor.glb")
+        .then(res => res.blob())
+        .then(blob => {
+          console.log("Blob size:", blob.size); // Debug line
 
-        // Scale the model to make it much smaller
-        model.scale.set(0.005, 0.005, 0.005);  // Make the model much smaller
+          if (blob.size < 1000) {
+            throw new Error("GLB file too small — likely invalid or not served correctly");
+          }
 
-        // Adjust the model's rotation so it faces the front and is flat on the card
-        model.rotation.set(0, Math.PI, 0);  // Rotate 180 degrees around Y-axis for correct front view
-        model.rotation.x = Math.PI / 2;  // Rotate 90 degrees around the X-axis to make the building flat
+          return blob.arrayBuffer();
+        })
+        .then(arrayBuffer => {
+          const loader = new THREE.GLTFLoader();
+          loader.parse(arrayBuffer, "", (gltf) => {
+            const model = gltf.scene;
 
-        // Adjust the model's position to bring it closer to the card
-        model.position.set(0, -0.1, 0);   // Lower the model on the Y-axis to bring it closer to the card
+            // Adjust model scale, rotation, position
+            model.scale.set(0.005, 0.005, 0.005);
+            model.rotation.set(Math.PI / 2, Math.PI, 0); // flat + flipped
+            model.position.set(0, -0.09, 0); // just above card
 
-        // Add the model to the anchor group
-        anchor.group.add(model);
-      }, undefined, (error) => {
-        console.error("Error loading GLB model:", error);
-      });
+            anchor.group.add(model);
+          }, (err) => {
+            console.error("GLB parse error:", err);
+          });
+        })
+        .catch((err) => {
+          console.error("Error loading GLB model:", err);
+        });
 
       await mindarThree.start();
 
@@ -152,6 +160,7 @@
   </script>
 </body>
 </html>
+
 
 
 
