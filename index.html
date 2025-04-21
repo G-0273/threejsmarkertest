@@ -70,7 +70,7 @@
       anchor.group.add(videoPlane);
 
       // Adjusted card size: matching physical size of a business card (around 3.5" x 2" or 8.9 cm x 5.1 cm)
-      const cardTexture = new THREE.TextureLoader().load("card.jpg");
+      const cardTexture = new THREE.TextureLoader().load("card.JPG");
       const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5); // Adjusted to fit a real business card
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
