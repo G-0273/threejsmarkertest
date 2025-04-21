@@ -58,13 +58,16 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
+      // Ensure correct renderer size and adjust on window resize
+      const setSize = () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      };
 
-      // Set up camera FOV for a better view
-      camera.fov = 75;
-      camera.updateProjectionMatrix();
+      setSize();
+      window.addEventListener('resize', setSize);
 
       const anchor = mindarThree.addAnchor(0);
 
@@ -121,6 +124,7 @@
   </script>
 </body>
 </html>
+
 
 
  
