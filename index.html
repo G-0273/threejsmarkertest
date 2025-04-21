@@ -56,6 +56,8 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
+
+      // Ensure correct renderer size
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -74,23 +76,24 @@
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      // Slightly smaller video plane to avoid clipping
-      const videoGeometry = new THREE.PlaneGeometry(0.85, 0.47);
+      // Slightly larger than card
+      const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01);
+      videoPlane.position.set(0, 0, -0.01); // behind the card
       anchor.group.add(videoPlane);
 
-      // Slightly smaller card geometry
+      // Card image
       const cardTexture = new THREE.TextureLoader().load("card.JPG");
       const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      cardPlane.position.set(0, 0, 0.001);
+      cardPlane.position.set(0, 0, 0.001); // in front of video
       anchor.group.add(cardPlane);
 
       await mindarThree.start();
 
+      // Try autoplay, fallback to user interaction
       try {
         await video.play();
       } catch (err) {
@@ -114,5 +117,6 @@
 </body>
 </html>
 
+ 
 
 
