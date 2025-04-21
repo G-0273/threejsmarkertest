@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>MindAR Video Overlay</title>
+  <title>MindAR Video Behind Business Card</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -15,43 +15,82 @@
       height: 100vh;
       position: relative;
     }
+    #start-button {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 1.5em;
+      z-index: 2;
+      cursor: pointer;
+    }
+    #start-button.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
+  <div id="start-button" class="hidden">Tap to Start AR</div>
 
   <script>
     const start = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind",
+        imageTargetSrc: "./targets.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       const anchor = mindarThree.addAnchor(0);
 
+      // Load video
       const video = document.createElement("video");
       video.src = "video.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      await video.play().catch(e => console.error("Video play error:", e));
 
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      const geometry = new THREE.PlaneGeometry(1, 0.5625);
-      const material = new THREE.MeshBasicMaterial({ map: texture });
-      const plane = new THREE.Mesh(geometry, material);
-      plane.position.z = 0;
+      // Adjusted video size: Slightly larger than the card size
+      const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8); // Slightly larger than the card
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, -0.01); // Slightly behind the card
+      anchor.group.add(videoPlane);
 
-      anchor.group.add(plane);
+      // Adjusted card size: matching physical size of a business card (around 3.5" x 2" or 8.9 cm x 5.1 cm)
+      const cardTexture = new THREE.TextureLoader().load("card.jpg");
+      const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5); // Adjusted to fit a real business card
+      const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
+      const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
+      cardPlane.position.set(0, 0, 0.001); // In front of the video
+      anchor.group.add(cardPlane);
 
       await mindarThree.start();
+
+      // Try autoplay, fallback to manual start
+      try {
+        await video.play();
+      } catch (err) {
+        const startButton = document.getElementById("start-button");
+        startButton.classList.remove("hidden");
+        startButton.addEventListener("click", async () => {
+          await video.play();
+          startButton.classList.add("hidden");
+        });
+      }
+
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
