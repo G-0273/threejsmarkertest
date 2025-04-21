@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR Video Behind Business Card</title>
+  <title>MindAR with 3D Model and Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
     body {
       margin: 0;
@@ -58,7 +59,7 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size and adjust on window resize
+      // Resize logic
       const setSize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -84,24 +85,35 @@
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      // Slightly larger than card
       const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // behind the card
+      videoPlane.position.set(0, 0, -0.01); // Behind card
       anchor.group.add(videoPlane);
 
-      // Card image
+      // Load card image
       const cardTexture = new THREE.TextureLoader().load("card.JPG");
       const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      cardPlane.position.set(0, 0, 0.001); // in front of video
+      cardPlane.position.set(0, 0, 0.001); // In front of video
       anchor.group.add(cardPlane);
+
+      // Load GLB model
+      const loader = new THREE.GLTFLoader();
+      loader.load('./models/3floor.glb', (gltf) => {
+        const model = gltf.scene;
+        model.scale.set(0.05, 0.05, 0.05); // Adjust size
+        model.position.set(0, 0.2, 0.05);  // Adjust position
+        model.rotation.x = Math.PI / 2;   // Optional: rotate upright
+        anchor.group.add(model);
+      }, undefined, (error) => {
+        console.error("Failed to load 3D model:", error);
+      });
 
       await mindarThree.start();
 
-      // Try autoplay, fallback to user interaction
+      // Autoplay fallback
       try {
         await video.play();
       } catch (err) {
@@ -124,6 +136,7 @@
   </script>
 </body>
 </html>
+
 
 
 
