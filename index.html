@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>MindAR Video Behind Business Card</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     body {
@@ -62,36 +62,53 @@
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      // Adjusted video size: Slightly larger than the card size
-      const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8); // Slightly larger than the card
+      const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // Slightly behind the card
+      videoPlane.position.set(0, 0, -0.01); // behind card
       anchor.group.add(videoPlane);
 
-      // Adjusted card size: matching physical size of a business card (around 3.5" x 2" or 8.9 cm x 5.1 cm)
-      const cardTexture = new THREE.TextureLoader().load("card.JPG");
-      const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5); // Adjusted to fit a real business card
+      // Load card image
+      const cardTexture = new THREE.TextureLoader().load("card.JPG"); // check casing!
+      const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
       const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
       const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      cardPlane.position.set(0, 0, 0.001); // In front of the video
+      cardPlane.position.set(0, 0, 0.001); // in front of video
       anchor.group.add(cardPlane);
 
+      // Start AR
       await mindarThree.start();
 
-      // Try autoplay, fallback to manual start
+      // Attempt to autoplay
       try {
         await video.play();
+        console.log("Video autoplayed successfully.");
       } catch (err) {
-        // Show the "Tap to Start" button if autoplay fails
+        console.warn("Autoplay failed, waiting for user gesture.");
         const startButton = document.getElementById("start-button");
         startButton.classList.remove("hidden");
         startButton.addEventListener("click", async () => {
-          // Play the video when the button is clicked
           await video.play();
+          console.log("Video started after user interaction.");
           startButton.classList.add("hidden");
         });
       }
+
+      // Fallback trigger: play on target found
+      anchor.onTargetFound = () => {
+        if (video.paused) {
+          video.play().then(() => {
+            console.log("Video started on target found.");
+          }).catch((e) => {
+            console.error("Error playing video on target found:", e);
+          });
+        }
+      };
+
+      anchor.onTargetLost = () => {
+        video.pause();
+        console.log("Video paused (target lost).");
+      };
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
@@ -105,6 +122,4 @@
 </body>
 </html>
 
-
-</html>
 
