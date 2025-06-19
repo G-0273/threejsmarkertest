@@ -48,7 +48,7 @@
 </head>
 <body>
   <div id="container"></div>
-
+  <!-- <div id="start-button" class="hidden">Tap to Start</div> -->
 
   <script>
     const start = async () => {
@@ -80,32 +80,26 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      // Load video
-      // const video = document.createElement("video");
-      // video.src = "video.mp4";
-      // video.crossOrigin = "anonymous";
-      // video.loop = true;
-      // video.muted = true;
-      // video.playsInline = true;
+      // Load video (currently disabled)
+      /*
+      const video = document.createElement("video");
+      video.src = "video.mp4";
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
 
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      // const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      // const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      // const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      // videoPlane.position.set(0, 0, -0.01); // slightly behind the card
-      // anchor.group.add(videoPlane);
-
-      // Load card front image
-      // const cardTexture = new THREE.TextureLoader().load("card.JPG");
-      // const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
-      // const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
-      // const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      // cardPlane.position.set(0, 0, 0.001); 
-      // anchor.group.add(cardPlane);
+      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      anchor.group.add(videoPlane);
+      */
 
       // Load GLB model (building)
       const gltfLoader = new THREE.GLTFLoader();
@@ -113,14 +107,13 @@
         const model = gltf.scene;
 
         // Scale the model to make it much smaller
-        model.scale.set(0.02, 0.02, 0.02);  // Make the model much smaller
+        model.scale.set(0.02, 0.02, 0.02);
 
         // Adjust the model's rotation so it faces the front and is flat on the card
-        model.rotation.set(0, Math.PI, 0);  // Rotate 180 degrees around Y-axis for correct front view
-        model.rotation.x = Math.PI / 2;  // Rotate 90 degrees around the X-axis to make the building flat
+        model.rotation.set(Math.PI / 2, Math.PI, 0); // X then Y rotation
 
         // Adjust the model's position to bring it closer to the card
-        model.position.set(0, -0.1, 0);   // Lower the model on the Y-axis to bring it closer to the card
+        model.position.set(0, -0.1, 0);
 
         // Add the model to the anchor group
         anchor.group.add(model);
@@ -130,6 +123,8 @@
 
       await mindarThree.start();
 
+      // Skip playing video (start button also disabled)
+      /*
       try {
         await video.play();
       } catch (err) {
@@ -140,6 +135,7 @@
           startButton.classList.add("hidden");
         });
       }
+      */
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
@@ -152,7 +148,6 @@
   </script>
 </body>
 </html>
-
 
 
 
