@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card with Model</title>
+  <title>MindAR Model and Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -58,7 +58,6 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      /*
       const video = document.createElement("video");
       video.src = "./video/video.mp4";
       video.crossOrigin = "anonymous";
@@ -74,12 +73,12 @@
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      const geometry = new THREE.PlaneGeometry(1, 0.5625);
-      const material = new THREE.MeshBasicMaterial({ map: texture });
-      const plane = new THREE.Mesh(geometry, material);
-      plane.position.set(0, 0, 0);
+      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, -0.01); // Behind the card
 
-      anchor.group.add(plane);
+      anchor.group.add(videoPlane);
 
       anchor.onTargetFound = () => {
         video.play();
@@ -87,7 +86,6 @@
       anchor.onTargetLost = () => {
         video.pause();
       };
-      */
 
       const loader = new THREE.GLTFLoader();
       loader.load("models/3floor.glb", (gltf) => {
@@ -96,26 +94,8 @@
         model.rotation.set(Math.PI / 2, Math.PI, 0);
         model.position.set(0, -0.1, 0);
         anchor.group.add(model);
-      });
-
-      await mindarThree.start();
-
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    };
-
-    start().catch(err => {
-      console.error("MindAR failed to start:", err);
-    });
-  </script>
-</body>
-</html>
-
-
-
-
-
+      }, undefined, (error) => {
+        console.error("Error loading
 
 
 
