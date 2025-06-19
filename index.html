@@ -88,16 +88,16 @@
       // video.muted = true;
       // video.playsInline = true;
 
-      const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBFormat;
+      // const texture = new THREE.VideoTexture(video);
+      // texture.minFilter = THREE.LinearFilter;
+      // texture.magFilter = THREE.LinearFilter;
+      // texture.format = THREE.RGBFormat;
 
-      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
-      anchor.group.add(videoPlane);
+      // const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      // const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      // const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      // videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      // anchor.group.add(videoPlane);
 
       // Load card front image
       // const cardTexture = new THREE.TextureLoader().load("card.JPG");
