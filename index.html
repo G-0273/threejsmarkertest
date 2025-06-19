@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card with Video and Model</title>
+  <title>MindAR AR Card with Model</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -16,24 +16,6 @@
       width: 100vw;
       height: 100vh;
       position: relative;
-    }
-    #start-button {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 1.5em;
-      z-index: 2;
-      cursor: pointer;
-    }
-    #start-button.hidden {
-      display: none;
     }
     canvas {
       position: absolute;
@@ -48,18 +30,16 @@
 </head>
 <body>
   <div id="container"></div>
-  <!-- <div id="start-button" class="hidden">Tap to Start</div> -->
 
   <script>
     const start = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind"
+        imageTargetSrc: "./targets.mind",
       });
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size and adjust on window resize
       const setSize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -68,74 +48,57 @@
       };
 
       setSize();
-      window.addEventListener('resize', setSize);
+      window.addEventListener("resize", setSize);
 
-      // Lighting for 3D models
       const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(hemiLight);
-
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
       dirLight.position.set(0, 1, 1);
       scene.add(dirLight);
 
       const anchor = mindarThree.addAnchor(0);
 
-      // Load video (currently disabled)
       /*
       const video = document.createElement("video");
-      video.src = "video.mp4";
+      video.src = "./video/video.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
+      video.preload = "auto";
+      video.setAttribute("webkit-playsinline", "true");
+      video.setAttribute("playsinline", "true");
 
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
-      anchor.group.add(videoPlane);
+      const geometry = new THREE.PlaneGeometry(1, 0.5625);
+      const material = new THREE.MeshBasicMaterial({ map: texture });
+      const plane = new THREE.Mesh(geometry, material);
+      plane.position.set(0, 0, 0);
+
+      anchor.group.add(plane);
+
+      anchor.onTargetFound = () => {
+        video.play();
+      };
+      anchor.onTargetLost = () => {
+        video.pause();
+      };
       */
 
-      // Load GLB model (building)
-      const gltfLoader = new THREE.GLTFLoader();
-      gltfLoader.load("models/3floor.glb", (gltf) => {
+      const loader = new THREE.GLTFLoader();
+      loader.load("models/3floor.glb", (gltf) => {
         const model = gltf.scene;
-
-        // Scale the model to make it much smaller
         model.scale.set(0.02, 0.02, 0.02);
-
-        // Adjust the model's rotation so it faces the front and is flat on the card
-        model.rotation.set(Math.PI / 2, Math.PI, 0); // X then Y rotation
-
-        // Adjust the model's position to bring it closer to the card
+        model.rotation.set(Math.PI / 2, Math.PI, 0);
         model.position.set(0, -0.1, 0);
-
-        // Add the model to the anchor group
         anchor.group.add(model);
-      }, undefined, (error) => {
-        console.error("Error loading GLB model:", error);
       });
 
       await mindarThree.start();
-
-      // Skip playing video (start button also disabled)
-      /*
-      try {
-        await video.play();
-      } catch (err) {
-        const startButton = document.getElementById("start-button");
-        startButton.classList.remove("hidden");
-        startButton.addEventListener("click", async () => {
-          await video.play();
-          startButton.classList.add("hidden");
-        });
-      }
-      */
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
@@ -148,8 +111,6 @@
   </script>
 </body>
 </html>
-
-
 
 
 
