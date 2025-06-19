@@ -88,10 +88,10 @@
       // video.muted = true;
       // video.playsInline = true;
 
-      // const texture = new THREE.VideoTexture(video);
-      // texture.minFilter = THREE.LinearFilter;
-      // texture.magFilter = THREE.LinearFilter;
-      // texture.format = THREE.RGBFormat;
+      const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBFormat;
 
       // const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
       // const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
