@@ -60,7 +60,7 @@
         });
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 1.5, 0); // floats above card
-        pngPlane.rotation.x = Math.PI / 2; // vertical
+        pngPlane.rotation.x = -Math.PI / 2; // vertical
         anchor.group.add(pngPlane);
       });
 
