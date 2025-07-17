@@ -29,13 +29,13 @@
   <div id="container"></div>
 
   <script>
-    // Disable pinch-zoom
+    // Prevent zoom gestures
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
-    window.addEventListener('gesturestart', (e) => e.preventDefault());
-    window.addEventListener('gesturechange', (e) => e.preventDefault());
-    window.addEventListener('gestureend', (e) => e.preventDefault());
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
+      window.addEventListener(event, e => e.preventDefault())
+    );
 
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -50,10 +50,9 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      // Load PNG and flip vertically
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false; // <<< Fix upside-down texture
+        texture.flipY = false; // Fix upside-down appearance
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
@@ -63,17 +62,19 @@
         });
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.6, 0); // Above marker
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Vertical
+
+        // Position it like a vertical sign sticking out of the card
+        pngPlane.position.set(0, 0.75, 0); // Move up from card center
+        pngPlane.rotation.set(0, 0, 0);    // Upright facing camera directly
 
         anchor.group.add(pngPlane);
       });
 
-      // Lighting
+      // Lights
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      directionalLight.position.set(1, 2, 3);
-      scene.add(directionalLight);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
       await mindarThree.start();
       renderer.setAnimationLoop(() => renderer.render(scene, camera));
