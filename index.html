@@ -29,7 +29,7 @@
   <div id="container"></div>
 
   <script>
-    // Prevent zooming/pinching behavior
+    // Disable pinch-zoom
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
@@ -50,40 +50,35 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      // === Load PNG texture and position like vertical sign ===
+      // Load PNG and flip vertically
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false; // <<< Fix upside-down texture
+
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // Raise it above the marker and rotate to be upright
-        pngPlane.position.set(0, 0.6, 0); // up from marker center
-        pngPlane.rotation.set(Math.PI, 0, 0); // vertical, upright
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.6, 0); // Above marker
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Vertical
 
         anchor.group.add(pngPlane);
       });
 
       // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-      scene.add(ambientLight);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
       directionalLight.position.set(1, 2, 3);
       scene.add(directionalLight);
 
       await mindarThree.start();
-
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
+      renderer.setAnimationLoop(() => renderer.render(scene, camera));
     });
   </script>
 </body>
 </html>
-
-
 
