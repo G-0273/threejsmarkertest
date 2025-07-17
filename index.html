@@ -29,6 +29,7 @@
   <div id="container"></div>
 
   <script>
+    // Prevent zooming/pinching behavior
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
@@ -49,7 +50,7 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      // === Load PNG texture ===
+      // === Load PNG texture and position like vertical sign ===
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
@@ -59,8 +60,11 @@
           side: THREE.DoubleSide,
         });
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-          pngPlane.position.set(0, 0, 0); // right on marker center
-          pngPlane.rotation.set(-Math.PI / 2, 0, 0); // stand upright facing camera
+
+        // Raise it above the marker and rotate to be upright
+        pngPlane.position.set(0, 0.6, 0); // up from marker center
+        pngPlane.rotation.set(-Math.PI / 2, Math.PI, 0); // vertical, facing camera
+
         anchor.group.add(pngPlane);
       });
 
@@ -73,7 +77,6 @@
 
       await mindarThree.start();
 
-      const clock = new THREE.Clock();
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
@@ -81,6 +84,6 @@
   </script>
 </body>
 </html>
- 
+
 
 
