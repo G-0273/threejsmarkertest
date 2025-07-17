@@ -46,13 +46,12 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
-      camera.position.z = 3;
 
       const anchor = mindarThree.addAnchor(0);
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false; // Fix upside-down appearance
+        texture.flipY = false; // Required for correct orientation with MindAR
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
@@ -63,14 +62,14 @@
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // Position it like a vertical sign sticking out of the card
-        pngPlane.position.set(0, 0.75, 0); // Move up from card center
-        pngPlane.rotation.set(0, 0, 0);    // Upright facing camera directly
+        // Set like an upright sign, standing vertically from the marker
+        pngPlane.position.set(0, 0.75, 0);              // Lift it above the marker center
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);      // Face the camera when card is flat
 
         anchor.group.add(pngPlane);
       });
 
-      // Lights
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
