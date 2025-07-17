@@ -59,8 +59,8 @@
           side: THREE.DoubleSide,
         });
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 1.5, 0.2); // floats above card
-        pngPlane.rotation.x = Math.PI; // vertical
+          pngPlane.position.set(0, 0, 0); // right on marker center
+          pngPlane.rotation.set(-Math.PI / 2, 0, 0); // stand upright facing camera
         anchor.group.add(pngPlane);
       });
 
