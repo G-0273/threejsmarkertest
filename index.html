@@ -63,7 +63,8 @@
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
         // Set like an upright sign, standing vertically from the marker
-        pngPlane.position.set(0, 0.2, 0.08);
+        pngPlane.position.set(0, 0.5, 0.08); // Y = 0.5 = half the image height
+
 
 
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);      // Face the camera when card is flat
