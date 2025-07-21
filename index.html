@@ -62,9 +62,8 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // Start slightly above card center
-        pngPlane.position.set(0, 0, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // initial upright sign
+        pngPlane.position.set(0, 0, 0.3); // Slightly above card center
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Upright sign
 
         anchor.group.add(pngPlane);
       });
@@ -79,12 +78,15 @@
 
       renderer.setAnimationLoop(() => {
         if (pngPlane) {
-          const cameraPos = camera.position.clone();
-          cameraPos.y = pngPlane.getWorldPosition(new THREE.Vector3()).y;
+          // Convert camera position to local space of the anchor group
+          const worldPos = camera.position.clone();
+          anchor.group.worldToLocal(worldPos);
 
-          pngPlane.lookAt(cameraPos);
-          pngPlane.rotation.x = -Math.PI / 2; // keep it upright
-          pngPlane.rotation.z = 0;            // no roll
+          // Calculate horizontal angle between camera and object (X/Z only)
+          const angle = Math.atan2(worldPos.x - pngPlane.position.x, worldPos.z - pngPlane.position.z);
+
+          // Apply only Y rotation to make it face the camera
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // keep upright, rotate only around Y
         }
 
         renderer.render(scene, camera);
