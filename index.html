@@ -61,14 +61,12 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-
-        pngPlane.position.set(0, 0, 0.3); // Slightly above card center
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Upright sign
+        pngPlane.position.set(0, 0, 0.3); // Slightly above the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
 
         anchor.group.add(pngPlane);
       });
 
-      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -78,15 +76,13 @@
 
       renderer.setAnimationLoop(() => {
         if (pngPlane) {
-          // Convert camera position to local space of the anchor group
-          const worldPos = camera.position.clone();
-          anchor.group.worldToLocal(worldPos);
+          const camPos = camera.position.clone();
+          anchor.group.worldToLocal(camPos);
 
-          // Calculate horizontal angle between camera and object (X/Z only)
-          const angle = Math.atan2(worldPos.x - pngPlane.position.x, worldPos.z - pngPlane.position.z);
+          // Flip the angle to match physical camera movement
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
 
-          // Apply only Y rotation to make it face the camera
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // keep upright, rotate only around Y
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
         }
 
         renderer.render(scene, camera);
