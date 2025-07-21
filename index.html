@@ -29,7 +29,6 @@
   <div id="container"></div>
 
   <script>
-    // Prevent zoom gestures
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
@@ -46,15 +45,13 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       const anchor = mindarThree.addAnchor(0);
 
+      let pngPlane = null;
+
       const textureLoader = new THREE.TextureLoader();
-
-      let pngPlane; // Declare outside to access in render loop
-
       textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false; // Required for correct orientation with MindAR
+        texture.flipY = false;
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
@@ -65,9 +62,9 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // Set like an upright sign, standing vertically from the marker
-        pngPlane.position.set(0, 0, 0.3); // slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // flat plane facing camera when card is flat
+        // Start slightly above card center
+        pngPlane.position.set(0, 0, 0.3);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // initial upright sign
 
         anchor.group.add(pngPlane);
       });
@@ -82,12 +79,14 @@
 
       renderer.setAnimationLoop(() => {
         if (pngPlane) {
-          // Make the PNG always face the camera
-          pngPlane.lookAt(camera.position);
-          // Keep it upright: zero out rotation around X and Z if desired
-          pngPlane.rotation.x = -Math.PI / 2; 
-          pngPlane.rotation.z = 0;
+          const cameraPos = camera.position.clone();
+          cameraPos.y = pngPlane.getWorldPosition(new THREE.Vector3()).y;
+
+          pngPlane.lookAt(cameraPos);
+          pngPlane.rotation.x = -Math.PI / 2; // keep it upright
+          pngPlane.rotation.z = 0;            // no roll
         }
+
         renderer.render(scene, camera);
       });
     });
