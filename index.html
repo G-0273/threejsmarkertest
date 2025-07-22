@@ -62,7 +62,7 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0, 0.3); // Slightly above the card
-        pngPlane.rotation.set(Math.PI / 4, 0, 0); // Tilted backward 45 degrees opposite side
+        pngPlane.rotation.set(-Math.PI / 4, 0, 0); // Tilted forward 45 degrees
 
         anchor.group.add(pngPlane);
       });
@@ -81,7 +81,7 @@
 
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
 
-          pngPlane.rotation.set(Math.PI / 4, angle, 0); // Maintain tilt + rotate Y to face camera
+          pngPlane.rotation.set(-Math.PI / 4, angle, 0); // Maintain tilt + rotate Y to face camera
         }
 
         renderer.render(scene, camera);
