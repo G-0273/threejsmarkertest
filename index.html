@@ -39,7 +39,6 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Enable local clipping globally
       renderer.localClippingEnabled = true;
 
       const anchor = mindarThree.addAnchor(0);
@@ -52,31 +51,28 @@
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-        // Create a clipping plane that clips from bottom to top on local Y axis
-        // Plane geometry is centered at (0,0), height=1, so bottom edge is at y = -0.5
-        // We'll animate clipping plane constant from 0.5 (fully clipped) to -0.5 (fully visible)
+        // Clipping plane from bottom up (local Y axis)
         const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.5);
 
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
-          clippingPlanes: [clipPlane],  // Assign the clipping plane here
+          clippingPlanes: [clipPlane],
           clipShadows: true,
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // Position the plane slightly above the card surface to avoid clipping into card
-        pngPlane.position.set(0, 0.15, 0);
+        // POSITION so bottom of plane is at y=0 (card surface)
+        pngPlane.position.set(0, 0.5, 0);
 
-        // Rotate the plane upright, flat on the card (rotation X = -90 degrees)
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
 
-        // Animation parameters
-        const fadeDuration = 3000; // fade in duration in ms
+        // Fade-in animation parameters
+        const fadeDuration = 3000;
         const startTime = performance.now();
 
         renderer.setAnimationLoop(() => {
@@ -84,10 +80,9 @@
             const elapsed = performance.now() - startTime;
             const progress = Math.min(elapsed / fadeDuration, 1);
 
-            // Animate clipPlane.constant from 0.5 (fully clipped) to -0.5 (fully visible)
-            clipPlane.constant = 0.5 - progress;
+            clipPlane.constant = 0.5 - progress; // from 0.5 to -0.5
 
-            // Track rotation so it faces the camera horizontally
+            // Rotate plane to face camera horizontally
             const camPos = camera.position.clone();
             anchor.group.worldToLocal(camPos);
             const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
@@ -98,7 +93,6 @@
         });
       });
 
-      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
