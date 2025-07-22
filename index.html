@@ -54,34 +54,15 @@
         texture.flipY = false;
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-
-        const pngMaterial = new THREE.ShaderMaterial({
-          uniforms: {
-            tex: { value: texture }
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: `
-            uniform sampler2D tex;
-            varying vec2 vUv;
-            void main() {
-              vec4 color = texture2D(tex, vUv);
-              float alpha = smoothstep(0.0, 0.1, vUv.y); // fade from bottom to top
-              gl_FragColor = vec4(color.rgb, color.a * alpha);
-            }
-          `,
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
           transparent: true,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0.001); // tiny offset to avoid z-fighting, very close to the card surface
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
+        pngPlane.position.set(0, 0, 0.001); // <-- tiny z offset here
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
 
         anchor.group.add(pngPlane);
       });
