@@ -41,59 +41,54 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let fadeUniforms = null;
 
-      // Create custom shader material with bottom-to-top fade
-      const vertexShader = `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-        }
-      `;
-
-      const fragmentShader = `
-        uniform sampler2D map;
-        uniform float fadeLevel;
-        varying vec2 vUv;
-
-        void main() {
-          vec4 color = texture2D(map, vUv);
-          // fadeLevel goes from 0 (bottom) to 1 (top)
-          float alpha = smoothstep(fadeLevel - 0.1, fadeLevel, vUv.y);
-          gl_FragColor = vec4(color.rgb, color.a * alpha);
-          if (gl_FragColor.a < 0.01) discard;
-        }
-      `;
-
-      // Load texture
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        fadeUniforms = {
-          map: { value: texture },
-          fadeLevel: { value: 0.0 }
-        };
-
-        const material = new THREE.ShaderMaterial({
-          uniforms: fadeUniforms,
-          vertexShader,
-          fragmentShader,
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
           transparent: true,
           side: THREE.DoubleSide,
+          clippingPlanes: [], // will add below
+          clipShadows: true,
         });
 
-        const geometry = new THREE.PlaneGeometry(1.5, 1);
-        pngPlane = new THREE.Mesh(geometry, material);
-
-        // Raise plane slightly above the card (Y axis)
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        // Slightly above the card to avoid clipping
         pngPlane.position.set(0, 0.05, 0);
-
-        // Keep upright rotation
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
+
+        // Create a clipping plane for fade from bottom to top (Y axis)
+        const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1); 
+        // Start fully clipped (hide everything)
+        pngMaterial.clippingPlanes = [clipPlane];
+
+        // Animate clipping plane from bottom (y=0) to top (y=-1)
+        const fadeDuration = 2000;
+        const startTime = performance.now();
+
+        // Overwrite animation loop to add fade animation
+        renderer.setAnimationLoop(() => {
+          if (anchor.group.visible && pngPlane) {
+            // Update clipping plane constant based on time (animate fade)
+            let elapsed = performance.now() - startTime;
+            let progress = Math.min(elapsed / fadeDuration, 1);
+            // Move plane from y=1 (hide) to y=0 (show)
+            clipPlane.constant = 1 - progress;
+
+            // Rotation to face camera on Y axis, as before
+            const camPos = camera.position.clone();
+            anchor.group.worldToLocal(camPos);
+            const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+            pngPlane.rotation.set(-Math.PI / 2, angle, 0);
+          }
+
+          renderer.render(scene, camera);
+        });
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -102,27 +97,8 @@
       scene.add(dirLight);
 
       await mindarThree.start();
-
-      const fadeDuration = 2000;
-      const startTime = performance.now();
-
-      renderer.setAnimationLoop(() => {
-        if (pngPlane && fadeUniforms && anchor.group.visible) {
-          // Update fadeLevel from 0 to 1 over fadeDuration ms
-          const elapsed = performance.now() - startTime;
-          const progress = Math.min(elapsed / fadeDuration, 1);
-          fadeUniforms.fadeLevel.value = progress;
-
-          // Rotate to face camera direction around Y axis
-          const camPos = camera.position.clone();
-          anchor.group.worldToLocal(camPos);
-          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
-        }
-
-        renderer.render(scene, camera);
-      });
     });
   </script>
 </body>
 </html>
+
