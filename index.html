@@ -46,39 +46,49 @@
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
+        // Plane size matches your image ratio
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
-          clippingPlanes: [], // will add below
+          clippingPlanes: [], // placeholder for clip plane
           clipShadows: true,
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        // Slightly above the card to avoid clipping
-        pngPlane.position.set(0, 0.05, 0);
+
+        // Position slightly ABOVE the card to avoid clipping
+        // Y axis = height axis in your setup, so use positive value here
+        pngPlane.position.set(0, 0.1, 0); // Adjust 0.1 if needed
+
+        // Rotate plane so it lays flat horizontally and faces camera
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
 
-        // Clipping plane for fade: pointing up (0,1,0), start at bottom (constant = 0)
-        // Will animate constant from 0 to 1 to reveal bottom to top
-        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+        // Clipping plane normal points UP the Y axis
+        // Start clipping plane below the plane so nothing is visible at first
+        // Since plane height is 1, bottom is at y = -0.5 relative to plane center
+        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.5); 
+
+        // Assign clipping plane to material
         pngMaterial.clippingPlanes = [clipPlane];
 
-        const fadeDuration = 2000; // ms
+        const fadeDuration = 3000; // fade time in milliseconds
         const startTime = performance.now();
 
         renderer.setAnimationLoop(() => {
           if (anchor.group.visible && pngPlane) {
+            // Calculate elapsed time and progress [0..1]
             const elapsed = performance.now() - startTime;
             const progress = Math.min(elapsed / fadeDuration, 1);
 
-            // Animate clipping plane constant from 0 (hide) to 1 (fully shown)
-            clipPlane.constant = progress;
+            // Animate clipPlane.constant from 0.5 (bottom) down to -0.5 (top) to reveal plane bottom-up
+            clipPlane.constant = 0.5 - progress; 
 
-            // Rotation to face camera on Y axis, same as before
+            // Rotate plane to face camera around Y axis
             const camPos = camera.position.clone();
             anchor.group.worldToLocal(camPos);
             const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
@@ -89,6 +99,7 @@
         });
       });
 
+      // Lights
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -99,3 +110,4 @@
   </script>
 </body>
 </html>
+
