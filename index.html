@@ -48,25 +48,65 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
+      let maskMaterial = null;
+      let fadeValue = 0; // 0 = fully transparent, 1 = fully visible
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+
+        // Material with alphaTest to avoid z-fighting, and transparent for fade effect
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
+          alphaTest: 0.01,
         });
 
+        // Create the plane mesh
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0.001); // <-- tiny z offset here
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
+
+        // Position it slightly above the card (increased z offset to avoid clipping)
+        pngPlane.position.set(0, 0, 0.05); // <-- increased from 0 to 0.05 here
+
+        // Upright (flat on card)
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
+
+        // Create a custom shader to fade from bottom to top
+        // We'll use a custom uniform for fade progress
+        pngPlane.material.onBeforeCompile = (shader) => {
+          shader.uniforms.fadeValue = { value: 0 };
+          shader.vertexShader = `
+            varying vec2 vUv;
+            ${shader.vertexShader}
+          `.replace(
+            `#include <uv_vertex>`,
+            `#include <uv_vertex>
+             vUv = uv;`
+          );
+
+          shader.fragmentShader = `
+            uniform float fadeValue;
+            varying vec2 vUv;
+            ${shader.fragmentShader}
+          `.replace(
+            `#include <dithering_fragment>`,
+            `#include <dithering_fragment>
+             if(vUv.y < fadeValue) {
+               discard;
+             }`
+          );
+
+          // Store reference so we can update fadeValue later
+          maskMaterial = shader.uniforms;
+        };
       });
 
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -74,15 +114,23 @@
 
       await mindarThree.start();
 
+      // Animate fade from bottom to top over 2 seconds
+      const fadeDuration = 2000; // ms
+      const startTime = performance.now();
+
       renderer.setAnimationLoop(() => {
-        if (pngPlane) {
+        if (pngPlane && maskMaterial) {
+          // Update fadeValue uniform from 0 to 1 over fadeDuration
+          const elapsed = performance.now() - startTime;
+          fadeValue = Math.min(elapsed / fadeDuration, 1);
+          maskMaterial.fadeValue.value = 1 - fadeValue; // fade from bottom (y=0) upward
+
+          // Rotation to always face the camera around Y-axis (unchanged)
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
-
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
         }
-
         renderer.render(scene, camera);
       });
     });
