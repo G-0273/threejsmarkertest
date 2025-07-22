@@ -29,13 +29,6 @@
   <div id="container"></div>
 
   <script>
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
-
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
@@ -50,23 +43,45 @@
       let pngPlane = null;
       let animationStartTime = null;
 
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
+      const loader = new THREE.TextureLoader();
+      loader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
+        const geometry = new THREE.PlaneGeometry(1.5, 1);
+
+        const material = new THREE.ShaderMaterial({
           transparent: true,
-          opacity: 0.0,
-          side: THREE.DoubleSide,
+          uniforms: {
+            uTexture: { value: texture },
+            uProgress: { value: 0.0 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D uTexture;
+            uniform float uProgress;
+            varying vec2 vUv;
+
+            void main() {
+              vec4 tex = texture2D(uTexture, vUv);
+              if (vUv.y > uProgress) {
+                discard;
+              }
+              gl_FragColor = tex;
+            }
+          `,
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.01, 0); // just above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright facing up
-
+        pngPlane = new THREE.Mesh(geometry, material);
+        pngPlane.position.set(0, 0.01, 0);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat, upright from card
         anchor.group.add(pngPlane);
+
         animationStartTime = performance.now();
       });
 
@@ -82,26 +97,14 @@
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
-          // rotate only around Y based on camera
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
 
-          // fade from bottom to top (simulate reveal)
           const elapsed = performance.now() - animationStartTime;
-          const fadeDuration = 1000; // ms
+          const fadeDuration = 1000;
 
-          if (elapsed <= fadeDuration) {
-            const progress = elapsed / fadeDuration;
-            pngPlane.material.opacity = progress;
-
-            // Optional: scale effect (grow from bottom)
-            pngPlane.scale.y = progress;
-            pngPlane.position.y = 0.01 + (1 - progress) * 0.5; // shift up as it grows
-          } else {
-            pngPlane.material.opacity = 1.0;
-            pngPlane.scale.y = 1;
-            pngPlane.position.y = 0.01;
-          }
+          let progress = Math.min(1, elapsed / fadeDuration);
+          pngPlane.material.uniforms.uProgress.value = progress;
         }
 
         renderer.render(scene, camera);
