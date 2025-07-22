@@ -48,63 +48,27 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let startTime = null;
-      let circuitMaterial = null;
+      let animationStartTime = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const geometry = new THREE.PlaneGeometry(1.5, 1);
-        circuitMaterial = new THREE.ShaderMaterial({
-          uniforms: {
-            uTexture: { value: texture },
-            uRevealProgress: { value: 0.0 },
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: `
-            uniform sampler2D uTexture;
-            uniform float uRevealProgress;
-            varying vec2 vUv;
-
-            void main() {
-              if (vUv.y > uRevealProgress) discard;
-              vec4 color = texture2D(uTexture, vUv);
-              gl_FragColor = color;
-            }
-          `,
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
           transparent: true,
+          opacity: 0.0,
           side: THREE.DoubleSide,
-          depthWrite: false,
         });
 
-        pngPlane = new THREE.Mesh(geometry, circuitMaterial);
-        pngPlane.position.set(0, 0, 0);
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
-        pngPlane.visible = false;
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.01, 0); // just above the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright facing up
 
         anchor.group.add(pngPlane);
+        animationStartTime = performance.now();
       });
-
-      anchor.onTargetFound = () => {
-        if (pngPlane) {
-          pngPlane.visible = true;
-          startTime = performance.now();
-        }
-      };
-
-      anchor.onTargetLost = () => {
-        if (pngPlane) {
-          pngPlane.visible = false;
-          if (circuitMaterial) circuitMaterial.uniforms.uRevealProgress.value = 0.0;
-        }
-      };
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -114,16 +78,29 @@
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (pngPlane && circuitMaterial) {
+        if (pngPlane) {
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
+          // rotate only around Y based on camera
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
 
-          if (startTime !== null) {
-            const elapsed = (performance.now() - startTime) / 1000;
-            circuitMaterial.uniforms.uRevealProgress.value = Math.min(1, elapsed / 1.5); // 1.5s fade
+          // fade from bottom to top (simulate reveal)
+          const elapsed = performance.now() - animationStartTime;
+          const fadeDuration = 1000; // ms
+
+          if (elapsed <= fadeDuration) {
+            const progress = elapsed / fadeDuration;
+            pngPlane.material.opacity = progress;
+
+            // Optional: scale effect (grow from bottom)
+            pngPlane.scale.y = progress;
+            pngPlane.position.y = 0.01 + (1 - progress) * 0.5; // shift up as it grows
+          } else {
+            pngPlane.material.opacity = 1.0;
+            pngPlane.scale.y = 1;
+            pngPlane.position.y = 0.01;
           }
         }
 
