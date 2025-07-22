@@ -47,51 +47,45 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
+      let pngPlane = null;
+      let fadeStartTime = null;
+
       const textureLoader = new THREE.TextureLoader();
-      const fadeShaderMaterial = (texture) => new THREE.ShaderMaterial({
-        uniforms: {
-          map: { value: texture },
-          opacity: { value: 0.0 },
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D map;
-          uniform float opacity;
-          varying vec2 vUv;
-          void main() {
-            vec4 tex = texture2D(map, vUv);
-            float alpha = smoothstep(0.0, 1.0, vUv.y) * opacity;
-            gl_FragColor = vec4(tex.rgb, tex.a * alpha);
-          }
-        `,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-
-      let pngPlane, fadeUniform;
-
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-        const geometry = new THREE.PlaneGeometry(1.5, 1);
 
-        const material = fadeShaderMaterial(texture);
-        fadeUniform = material.uniforms.opacity;
+        const geometry = new THREE.PlaneGeometry(1.5, 1);
+        const material = new THREE.ShaderMaterial({
+          transparent: true,
+          uniforms: {
+            uTexture: { value: texture },
+            uTime: { value: 0 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D uTexture;
+            uniform float uTime;
+            varying vec2 vUv;
+            void main() {
+              float alphaMask = smoothstep(0.0, 1.0, (vUv.y - (1.0 - uTime)));
+              vec4 texColor = texture2D(uTexture, vUv);
+              gl_FragColor = vec4(texColor.rgb, texColor.a * alphaMask);
+            }
+          `
+        });
 
         pngPlane = new THREE.Mesh(geometry, material);
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
-        pngPlane.position.set(0, 0, 0.01); // Raised off card
+        pngPlane.position.set(0, 0, 0.01); // lift slightly off the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // flat on card
+        anchor.group.add(pngPlane);
 
-        // Smoothing group for better jitter resistance
-        const smoothedGroup = new THREE.Group();
-        smoothedGroup.add(pngPlane);
-        anchor.group.add(smoothedGroup);
+        fadeStartTime = performance.now();
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -101,23 +95,18 @@
 
       await mindarThree.start();
 
-      let fadeIn = 0;
-      anchor.onTargetFound = () => {
-        fadeIn = 0; // Reset fade
-      };
-
       renderer.setAnimationLoop(() => {
-        if (pngPlane && fadeUniform) {
-          if (fadeIn < 1) {
-            fadeIn += 0.02;
-            fadeUniform.value = Math.min(1.0, fadeIn);
-          }
-
-          // Stabilize rotation to face upward always
+        if (pngPlane) {
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
-          const angle = -Math.atan2(camPos.x, camPos.z);
+
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
+
+          // Animate fade-in
+          const elapsed = (performance.now() - fadeStartTime) / 1000;
+          const fadeValue = Math.min(1, elapsed / 2.0); // 2 seconds fade
+          pngPlane.material.uniforms.uTime.value = fadeValue;
         }
 
         renderer.render(scene, camera);
