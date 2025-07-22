@@ -62,7 +62,7 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
+        pngPlane.rotation.set(-Math.PI / 4, 0, 0); // Tilted back 45 degrees
 
         anchor.group.add(pngPlane);
       });
@@ -79,10 +79,10 @@
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
-          // Flip the angle to match physical camera movement
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
 
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
+          // Maintain 45° backward tilt and update Y rotation only
+          pngPlane.rotation.set(-Math.PI / 4, angle, 0);
         }
 
         renderer.render(scene, camera);
