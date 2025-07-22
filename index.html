@@ -2,26 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR Projection</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      touch-action: none;
+      margin: 0; padding: 0; overflow: hidden; touch-action: none;
     }
     #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
+      width: 100vw; height: 100vh; position: relative;
     }
     canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
+      width: 100% !important; height: 100% !important; object-fit: cover;
     }
   </style>
 </head>
@@ -29,7 +22,7 @@
   <div id="container"></div>
 
   <script>
-    window.addEventListener('wheel', (e) => {
+    window.addEventListener('wheel', e => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
@@ -54,17 +47,17 @@
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const geometry = new THREE.PlaneGeometry(1.5, 1);
 
-        const pngMaterial = new THREE.MeshBasicMaterial({
+        const material = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
           alphaTest: 0.01,
         });
 
-        // Modify shader for fade effect
-        pngMaterial.onBeforeCompile = (shader) => {
+        // Add fade from bottom shader code
+        material.onBeforeCompile = (shader) => {
           shader.uniforms.fadeValue = { value: 1.0 };
           fadeUniforms = shader.uniforms;
 
@@ -88,9 +81,9 @@
           );
         };
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane = new THREE.Mesh(geometry, material);
 
-        // Raise on Y axis so it’s above the card and avoid clipping
+        // Raise Y to avoid clipping into card
         pngPlane.position.set(0, 0.05, 0);
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
@@ -104,17 +97,16 @@
 
       await mindarThree.start();
 
-      const fadeDuration = 2000; // Fade duration in ms
+      const fadeDuration = 2000; // 2 seconds
       const startTime = performance.now();
 
       renderer.setAnimationLoop(() => {
         if (pngPlane && fadeUniforms) {
-          // Calculate fade progress (from bottom to top)
           const elapsed = performance.now() - startTime;
           const fadeVal = 1 - Math.min(elapsed / fadeDuration, 1);
           fadeUniforms.fadeValue.value = fadeVal;
 
-          // Tracking rotation logic (rotate around Y)
+          // Keep original rotation logic intact
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
