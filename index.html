@@ -62,25 +62,23 @@
 
         anchor.group.add(pngPlane);
 
-        // Create a clipping plane for fade from bottom to top (Y axis)
-        const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1); 
-        // Start fully clipped (hide everything)
+        // Clipping plane for fade: pointing up (0,1,0), start at bottom (constant = 0)
+        // Will animate constant from 0 to 1 to reveal bottom to top
+        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
         pngMaterial.clippingPlanes = [clipPlane];
 
-        // Animate clipping plane from bottom (y=0) to top (y=-1)
-        const fadeDuration = 2000;
+        const fadeDuration = 2000; // ms
         const startTime = performance.now();
 
-        // Overwrite animation loop to add fade animation
         renderer.setAnimationLoop(() => {
           if (anchor.group.visible && pngPlane) {
-            // Update clipping plane constant based on time (animate fade)
-            let elapsed = performance.now() - startTime;
-            let progress = Math.min(elapsed / fadeDuration, 1);
-            // Move plane from y=1 (hide) to y=0 (show)
-            clipPlane.constant = 1 - progress;
+            const elapsed = performance.now() - startTime;
+            const progress = Math.min(elapsed / fadeDuration, 1);
 
-            // Rotation to face camera on Y axis, as before
+            // Animate clipping plane constant from 0 (hide) to 1 (fully shown)
+            clipPlane.constant = progress;
+
+            // Rotation to face camera on Y axis, same as before
             const camPos = camera.position.clone();
             anchor.group.worldToLocal(camPos);
             const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
@@ -101,4 +99,3 @@
   </script>
 </body>
 </html>
-
