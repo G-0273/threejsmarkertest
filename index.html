@@ -48,7 +48,6 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let currentAngle = 0;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
@@ -75,23 +74,15 @@
 
       await mindarThree.start();
 
-      function lerpAngle(a, b, t) {
-        const diff = ((b - a + Math.PI) % (2 * Math.PI)) - Math.PI;
-        return a + diff * t;
-      }
-
       renderer.setAnimationLoop(() => {
         if (pngPlane) {
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
-          const targetAngle = -Math.atan2(
-            camPos.x - pngPlane.position.x,
-            camPos.z - pngPlane.position.z
-          );
+          // Flip the angle to match physical camera movement
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
 
-          currentAngle = lerpAngle(currentAngle, targetAngle, 0.1);
-          pngPlane.rotation.set(-Math.PI / 2, currentAngle, 0);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
         }
 
         renderer.render(scene, camera);
