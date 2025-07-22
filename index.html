@@ -49,16 +49,10 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let animationStart = null;
-      const animationDuration = 1000;
 
       const smoothed = {
         position: new THREE.Vector3(),
         rotationY: 0
-      };
-
-      anchor.onTargetFound = () => {
-        animationStart = performance.now();
       };
 
       const textureLoader = new THREE.TextureLoader();
@@ -69,12 +63,11 @@
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
-          opacity: 0,
           side: THREE.DoubleSide,
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, -0.2, 0.3); // starts below
+        pngPlane.position.set(0, 0, 0.3); // Slightly above the card
         pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
         anchor.group.add(pngPlane);
       });
@@ -97,18 +90,6 @@
 
       renderer.setAnimationLoop(() => {
         if (pngPlane && anchor.group.visible) {
-          // Fade-in animation from bottom
-          if (animationStart) {
-            const elapsed = performance.now() - animationStart;
-            const t = Math.min(elapsed / animationDuration, 1);
-            const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
-
-            pngPlane.position.y = -0.2 + ease * 0.2; // move from -0.2 to 0
-            pngPlane.material.opacity = ease;
-
-            if (t === 1) animationStart = null;
-          }
-
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
