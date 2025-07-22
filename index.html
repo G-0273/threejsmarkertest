@@ -48,7 +48,7 @@
       const anchor = mindarThree.addAnchor(0);
 
       const smoothedGroup = new THREE.Group();
-      scene.add(smoothedGroup);
+      anchor.group.add(smoothedGroup); // IMPORTANT: attach to anchor so it follows tracking & visibility
 
       let pngPlane = null;
 
@@ -64,8 +64,8 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
+        pngPlane.position.set(0, 0, 0.3);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         smoothedGroup.add(pngPlane);
       });
@@ -77,33 +77,36 @@
 
       await mindarThree.start();
 
-      const tempQuaternion = new THREE.Quaternion();
-      const tempPosition = new THREE.Vector3();
-      const lerpFactor = 0.2;
+      const targetGroup = anchor.group;
+      const tempPos = new THREE.Vector3();
+      const tempQuat = new THREE.Quaternion();
+      const lerpFactor = 0.15;
 
       renderer.setAnimationLoop(() => {
-        if (anchor.group.visible && pngPlane) {
+        smoothedGroup.visible = targetGroup.visible;
+
+        if (pngPlane && targetGroup.visible) {
           // Smooth position
-          anchor.group.getWorldPosition(tempPosition);
-          smoothedGroup.position.lerp(tempPosition, lerpFactor);
+          targetGroup.getWorldPosition(tempPos);
+          smoothedGroup.getWorldPosition(smoothedGroup.position);
+          smoothedGroup.position.lerp(tempPos, lerpFactor);
+          anchor.group.worldToLocal(smoothedGroup.position); // convert back to local space
 
           // Smooth rotation
-          anchor.group.getWorldQuaternion(tempQuaternion);
-          smoothedGroup.quaternion.slerp(tempQuaternion, lerpFactor);
+          targetGroup.getWorldQuaternion(tempQuat);
+          smoothedGroup.quaternion.slerp(tempQuat, lerpFactor);
+          // No need to convert to local rotation if it's a child of anchor.group
 
           // Face camera horizontally
           const camPos = camera.position.clone();
           smoothedGroup.worldToLocal(camPos);
           const angle = -Math.atan2(camPos.x, camPos.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // keep upright, rotate only around Y
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
         }
 
         renderer.render(scene, camera);
       });
     });
   </script>
-</body>
-</html>
-
 </body>
 </html>
