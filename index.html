@@ -20,6 +20,7 @@
 </head>
 <body>
   <div id="container"></div>
+
   <script>
     window.addEventListener('wheel', e => {
       if (e.ctrlKey) e.preventDefault();
@@ -42,57 +43,59 @@
       let pngPlane = null;
       let fadeUniforms = null;
 
+      // Create custom shader material with bottom-to-top fade
+      const vertexShader = `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+        }
+      `;
+
+      const fragmentShader = `
+        uniform sampler2D map;
+        uniform float fadeLevel;
+        varying vec2 vUv;
+
+        void main() {
+          vec4 color = texture2D(map, vUv);
+          // fadeLevel goes from 0 (bottom) to 1 (top)
+          float alpha = smoothstep(fadeLevel - 0.1, fadeLevel, vUv.y);
+          gl_FragColor = vec4(color.rgb, color.a * alpha);
+          if (gl_FragColor.a < 0.01) discard;
+        }
+      `;
+
       // Load texture
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const geometry = new THREE.PlaneGeometry(1.5, 1);
-
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-          alphaTest: 0.01,
-        });
-
-        // Add simple fade shader for bottom-to-top fade-in
-        material.onBeforeCompile = (shader) => {
-          shader.uniforms.fadeLevel = { value: 0 };
-          fadeUniforms = shader.uniforms;
-
-          shader.vertexShader = `
-            varying vec2 vUv;
-            ${shader.vertexShader}
-          `.replace(
-            '#include <uv_vertex>',
-            `#include <uv_vertex>
-             vUv = uv;`
-          );
-
-          shader.fragmentShader = `
-            uniform float fadeLevel;
-            varying vec2 vUv;
-            ${shader.fragmentShader}
-          `.replace(
-            '#include <dithering_fragment>',
-            `#include <dithering_fragment>
-             if (vUv.y < fadeLevel) discard;`
-          );
+        fadeUniforms = {
+          map: { value: texture },
+          fadeLevel: { value: 0.0 }
         };
 
+        const material = new THREE.ShaderMaterial({
+          uniforms: fadeUniforms,
+          vertexShader,
+          fragmentShader,
+          transparent: true,
+          side: THREE.DoubleSide,
+        });
+
+        const geometry = new THREE.PlaneGeometry(1.5, 1);
         pngPlane = new THREE.Mesh(geometry, material);
 
-        // Raise plane above the card on Y axis to prevent clipping
+        // Raise plane slightly above the card (Y axis)
         pngPlane.position.set(0, 0.05, 0);
 
-        // Set upright rotation
+        // Keep upright rotation
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
       });
 
-      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -100,18 +103,17 @@
 
       await mindarThree.start();
 
-      // Fade-in duration in ms
       const fadeDuration = 2000;
       const startTime = performance.now();
 
       renderer.setAnimationLoop(() => {
         if (pngPlane && fadeUniforms && anchor.group.visible) {
-          // Calculate fade progress from bottom to top
+          // Update fadeLevel from 0 to 1 over fadeDuration ms
           const elapsed = performance.now() - startTime;
           const progress = Math.min(elapsed / fadeDuration, 1);
-          fadeUniforms.fadeLevel.value = 1 - progress;
+          fadeUniforms.fadeLevel.value = progress;
 
-          // Maintain original rotation behavior
+          // Rotate to face camera direction around Y axis
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
