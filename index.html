@@ -29,6 +29,13 @@
   <div id="container"></div>
 
   <script>
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
+      window.addEventListener(event, e => e.preventDefault())
+    );
+
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
@@ -40,49 +47,51 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let pngPlane = null;
-      let animationStartTime = null;
+      const textureLoader = new THREE.TextureLoader();
+      const fadeShaderMaterial = (texture) => new THREE.ShaderMaterial({
+        uniforms: {
+          map: { value: texture },
+          opacity: { value: 0.0 },
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D map;
+          uniform float opacity;
+          varying vec2 vUv;
+          void main() {
+            vec4 tex = texture2D(map, vUv);
+            float alpha = smoothstep(0.0, 1.0, vUv.y) * opacity;
+            gl_FragColor = vec4(tex.rgb, tex.a * alpha);
+          }
+        `,
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
 
-      const loader = new THREE.TextureLoader();
-      loader.load("circuitdisplay.png", (texture) => {
+      let pngPlane, fadeUniform;
+
+      textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const geometry = new THREE.PlaneGeometry(1.5, 1);
 
-        const material = new THREE.ShaderMaterial({
-          transparent: true,
-          uniforms: {
-            uTexture: { value: texture },
-            uProgress: { value: 0.0 }
-          },
-          vertexShader: `
-            varying vec2 vUv;
-            void main() {
-              vUv = uv;
-              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-          `,
-          fragmentShader: `
-            uniform sampler2D uTexture;
-            uniform float uProgress;
-            varying vec2 vUv;
-
-            void main() {
-              vec4 tex = texture2D(uTexture, vUv);
-              if (vUv.y > uProgress) {
-                discard;
-              }
-              gl_FragColor = tex;
-            }
-          `,
-        });
+        const material = fadeShaderMaterial(texture);
+        fadeUniform = material.uniforms.opacity;
 
         pngPlane = new THREE.Mesh(geometry, material);
-        pngPlane.position.set(0, 0.01, 0);
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat, upright from card
-        anchor.group.add(pngPlane);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
+        pngPlane.position.set(0, 0, 0.01); // Raised off card
 
-        animationStartTime = performance.now();
+        // Smoothing group for better jitter resistance
+        const smoothedGroup = new THREE.Group();
+        smoothedGroup.add(pngPlane);
+        anchor.group.add(smoothedGroup);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -92,19 +101,23 @@
 
       await mindarThree.start();
 
+      let fadeIn = 0;
+      anchor.onTargetFound = () => {
+        fadeIn = 0; // Reset fade
+      };
+
       renderer.setAnimationLoop(() => {
-        if (pngPlane) {
+        if (pngPlane && fadeUniform) {
+          if (fadeIn < 1) {
+            fadeIn += 0.02;
+            fadeUniform.value = Math.min(1.0, fadeIn);
+          }
+
+          // Stabilize rotation to face upward always
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
-
-          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+          const angle = -Math.atan2(camPos.x, camPos.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
-
-          const elapsed = performance.now() - animationStartTime;
-          const fadeDuration = 1000;
-
-          let progress = Math.min(1, elapsed / fadeDuration);
-          pngPlane.material.uniforms.uProgress.value = progress;
         }
 
         renderer.render(scene, camera);
@@ -113,4 +126,3 @@
   </script>
 </body>
 </html>
-
