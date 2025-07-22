@@ -47,28 +47,26 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let rotatingPlane = null;
+      let tiltGroup = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
+        const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const planeMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
 
-        // Plane mesh
-        rotatingPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        rotatingPlane.position.set(0, 0, 0); // centered in parent
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
 
-        // Parent group to tilt the entire display
-        const tiltGroup = new THREE.Group();
-        tiltGroup.rotation.x = Math.PI / 9; // ~-20° tilt backward
-        tiltGroup.position.set(0, 0.3, 0.3); // slightly above the card
-        tiltGroup.add(rotatingPlane);
+        // Wrap in a group to tilt the display back
+        tiltGroup = new THREE.Group();
+        tiltGroup.position.set(0, 0.3, 0.3); // raise above card
+        tiltGroup.rotation.x = Math.PI / 9; // 20° backward tilt
+        tiltGroup.add(plane);
 
         anchor.group.add(tiltGroup);
       });
@@ -81,12 +79,12 @@
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (rotatingPlane) {
+        if (tiltGroup) {
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
 
           const angleY = -Math.atan2(camPos.x, camPos.z);
-          rotatingPlane.rotation.y = angleY;
+          tiltGroup.rotation.y = angleY; // Rotate only around Y, preserve the backward tilt
         }
 
         renderer.render(scene, camera);
