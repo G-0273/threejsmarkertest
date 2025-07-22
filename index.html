@@ -101,4 +101,24 @@
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLig
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
+
+      await mindarThree.start();
+
+      renderer.setAnimationLoop(() => {
+        if (pngPlane) {
+          const camPos = camera.position.clone();
+          anchor.group.worldToLocal(camPos);
+
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
+        }
+
+        renderer.render(scene, camera);
+      });
+    });
+  </script>
+</body>
+</html>
