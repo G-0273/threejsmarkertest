@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MindAR Hologram</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -11,31 +11,16 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      touch-action: none;
     }
     #container {
       width: 100vw;
       height: 100vh;
-      position: relative;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
     }
   </style>
 </head>
 <body>
   <div id="container"></div>
-
   <script>
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
-
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
@@ -47,63 +32,54 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let pngPlane = null;
-      let animationStartTime = null;
+      let circuitPlane, startTime = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          opacity: 0,
-          side: THREE.DoubleSide,
+        const geo = new THREE.PlaneGeometry(1.5, 1);
+        const mat = new THREE.MeshBasicMaterial({ 
+          map: texture, 
+          transparent: true, 
+          opacity: 0, 
+          side: THREE.DoubleSide 
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.01, 0); // 0.01 Y lifts it *above* the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
-
-        anchor.group.add(pngPlane);
-
-        // Start animation when anchor becomes visible
-        anchor.onTargetFound = () => {
-          animationStartTime = performance.now();
-        };
+        circuitPlane = new THREE.Mesh(geo, mat);
+        circuitPlane.rotation.set(-Math.PI / 2, 0, 0);
+        circuitPlane.position.set(0, 0.005, 0); // Start barely above card
+        anchor.group.add(circuitPlane);
       });
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
+      anchor.onTargetFound = () => {
+        if (circuitPlane) {
+          startTime = performance.now();
+          circuitPlane.visible = true;
+        }
+      };
+
+      anchor.onTargetLost = () => {
+        if (circuitPlane) {
+          circuitPlane.visible = false;
+          startTime = null;
+        }
+      };
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (pngPlane) {
-          // Rotation to face camera
-          const camPos = camera.position.clone();
-          anchor.group.worldToLocal(camPos);
-          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
-
-          // Fade from bottom up
-          if (animationStartTime) {
-            const elapsed = performance.now() - animationStartTime;
-            const duration = 1000; // 1 second
-            const t = Math.min(elapsed / duration, 1);
-
-            pngPlane.material.opacity = t;
-            pngPlane.position.y = 0.01 + (0.1 * t); // rises slightly as it fades
-          }
+        if (circuitPlane && circuitPlane.visible && startTime !== null) {
+          const elapsed = performance.now() - startTime;
+          const duration = 1000;
+          const t = Math.min(elapsed / duration, 1);
+          circuitPlane.material.opacity = t;
+          circuitPlane.position.y = 0.005 + 0.05 * t; // rises 5cm above card
         }
-
         renderer.render(scene, camera);
       });
     });
   </script>
 </body>
 </html>
-
