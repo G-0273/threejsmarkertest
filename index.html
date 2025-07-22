@@ -80,8 +80,8 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 3, 0); // keep it ON the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright as before
+        pngPlane.position.set(0, 0, 0.001); // tiny offset to avoid z-fighting, very close to the card surface
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
       });
@@ -99,7 +99,7 @@
           anchor.group.worldToLocal(camPos);
 
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
         }
 
         renderer.render(scene, camera);
