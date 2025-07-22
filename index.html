@@ -47,9 +47,6 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      const smoothedGroup = new THREE.Group();
-      anchor.group.add(smoothedGroup); // IMPORTANT: attach to anchor so it follows tracking & visibility
-
       let pngPlane = null;
 
       const textureLoader = new THREE.TextureLoader();
@@ -64,10 +61,10 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
+        pngPlane.position.set(0, 0, 0.3); // Slightly above the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
 
-        smoothedGroup.add(pngPlane);
+        anchor.group.add(pngPlane);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -77,31 +74,15 @@
 
       await mindarThree.start();
 
-      const targetGroup = anchor.group;
-      const tempPos = new THREE.Vector3();
-      const tempQuat = new THREE.Quaternion();
-      const lerpFactor = 0.15;
-
       renderer.setAnimationLoop(() => {
-        smoothedGroup.visible = targetGroup.visible;
-
-        if (pngPlane && targetGroup.visible) {
-          // Smooth position
-          targetGroup.getWorldPosition(tempPos);
-          smoothedGroup.getWorldPosition(smoothedGroup.position);
-          smoothedGroup.position.lerp(tempPos, lerpFactor);
-          anchor.group.worldToLocal(smoothedGroup.position); // convert back to local space
-
-          // Smooth rotation
-          targetGroup.getWorldQuaternion(tempQuat);
-          smoothedGroup.quaternion.slerp(tempQuat, lerpFactor);
-          // No need to convert to local rotation if it's a child of anchor.group
-
-          // Face camera horizontally
+        if (pngPlane) {
           const camPos = camera.position.clone();
-          smoothedGroup.worldToLocal(camPos);
-          const angle = -Math.atan2(camPos.x, camPos.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
+          anchor.group.worldToLocal(camPos);
+
+          // Flip the angle to match physical camera movement
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
         }
 
         renderer.render(scene, camera);
