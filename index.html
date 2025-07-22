@@ -47,7 +47,7 @@
 
         circuitPlane = new THREE.Mesh(geo, mat);
         circuitPlane.rotation.set(-Math.PI / 2, 0, 0);
-        circuitPlane.position.set(0, 0.005, 0); // Start barely above card
+        circuitPlane.position.set(0, 0.03, 0); // Start higher above card
         anchor.group.add(circuitPlane);
       });
 
@@ -75,7 +75,7 @@
           const duration = 1000;
           const t = Math.min(elapsed / duration, 1);
           circuitPlane.material.opacity = t;
-          circuitPlane.position.y = 0.005 + 0.05 * t; // rises 5cm above card
+          circuitPlane.position.y = 0.03 + 0.07 * t; // rise to 10cm
         }
         renderer.render(scene, camera);
       });
