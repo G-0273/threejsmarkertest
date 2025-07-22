@@ -38,7 +38,6 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       renderer.localClippingEnabled = true;
 
       const anchor = mindarThree.addAnchor(0);
@@ -51,8 +50,8 @@
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-        // Clipping plane from bottom up (local Y axis)
-        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0.5);
+        // Clipping plane: normal along local Z axis (plane faces along +Z after rotation)
+        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0.5);
 
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
@@ -64,14 +63,14 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
 
-        // POSITION so bottom of plane is at y=0 (card surface)
-        pngPlane.position.set(0, 0.5, 0);
+        // Lift plane above card by moving it UP in world Y axis:
+        pngPlane.position.set(0, 0.05, 0); // just above card surface
 
+        // Rotate plane upright (flat on XY plane)
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
 
         anchor.group.add(pngPlane);
 
-        // Fade-in animation parameters
         const fadeDuration = 3000;
         const startTime = performance.now();
 
@@ -80,9 +79,10 @@
             const elapsed = performance.now() - startTime;
             const progress = Math.min(elapsed / fadeDuration, 1);
 
-            clipPlane.constant = 0.5 - progress; // from 0.5 to -0.5
+            // Animate clipping constant from 0.5 (fully clipped) to -0.5 (fully visible)
+            clipPlane.constant = 0.5 - progress;
 
-            // Rotate plane to face camera horizontally
+            // Rotate plane horizontally to face camera
             const camPos = camera.position.clone();
             anchor.group.worldToLocal(camPos);
             const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
@@ -103,4 +103,3 @@
   </script>
 </body>
 </html>
-
