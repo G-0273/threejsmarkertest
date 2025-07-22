@@ -48,22 +48,45 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
+      let fadeUniforms = {
+        uTexture: { value: null },
+        uFadeProgress: { value: 0.0 }
+      };
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
+        fadeUniforms.uTexture.value = texture;
+
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
+        const pngMaterial = new THREE.ShaderMaterial({
           transparent: true,
           side: THREE.DoubleSide,
+          uniforms: fadeUniforms,
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D uTexture;
+            uniform float uFadeProgress;
+            varying vec2 vUv;
+
+            void main() {
+              vec4 texColor = texture2D(uTexture, vUv);
+              float alpha = smoothstep(0.0, 1.0, vUv.y - (1.0 - uFadeProgress));
+              gl_FragColor = vec4(texColor.rgb, texColor.a * alpha);
+            }
+          `
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
-
+        pngPlane.position.set(0, 0, 0);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
         anchor.group.add(pngPlane);
       });
 
@@ -74,15 +97,20 @@
 
       await mindarThree.start();
 
-      renderer.setAnimationLoop(() => {
+      let fadeStartTime = null;
+      const fadeDuration = 2.0; // seconds
+
+      renderer.setAnimationLoop((time) => {
         if (pngPlane) {
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
-
-          // Flip the angle to match physical camera movement
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
 
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
+          // Animate fade
+          if (fadeStartTime === null) fadeStartTime = time;
+          let elapsed = (time - fadeStartTime) / 1000;
+          fadeUniforms.uFadeProgress.value = Math.min(elapsed / fadeDuration, 1.0);
         }
 
         renderer.render(scene, camera);
