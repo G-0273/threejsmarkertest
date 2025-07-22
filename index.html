@@ -47,6 +47,9 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
+      const smoothedGroup = new THREE.Group();
+      scene.add(smoothedGroup);
+
       let pngPlane = null;
 
       const textureLoader = new THREE.TextureLoader();
@@ -64,7 +67,7 @@
         pngPlane.position.set(0, 0, 0.3); // Slightly above the card
         pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
 
-        anchor.group.add(pngPlane);
+        smoothedGroup.add(pngPlane);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -74,20 +77,33 @@
 
       await mindarThree.start();
 
+      const tempQuaternion = new THREE.Quaternion();
+      const tempPosition = new THREE.Vector3();
+      const lerpFactor = 0.2;
+
       renderer.setAnimationLoop(() => {
-        if (pngPlane) {
+        if (anchor.group.visible && pngPlane) {
+          // Smooth position
+          anchor.group.getWorldPosition(tempPosition);
+          smoothedGroup.position.lerp(tempPosition, lerpFactor);
+
+          // Smooth rotation
+          anchor.group.getWorldQuaternion(tempQuaternion);
+          smoothedGroup.quaternion.slerp(tempQuaternion, lerpFactor);
+
+          // Face camera horizontally
           const camPos = camera.position.clone();
-          anchor.group.worldToLocal(camPos);
-
-          // Flip the angle to match physical camera movement
-          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // rotate only around Y
+          smoothedGroup.worldToLocal(camPos);
+          const angle = -Math.atan2(camPos.x, camPos.z);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // keep upright, rotate only around Y
         }
 
         renderer.render(scene, camera);
       });
     });
   </script>
+</body>
+</html>
+
 </body>
 </html>
