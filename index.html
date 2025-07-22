@@ -2,19 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AR Projection</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; touch-action: none;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      touch-action: none;
     }
     #container {
-      width: 100vw; height: 100vh; position: relative;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
     }
     canvas {
-      width: 100% !important; height: 100% !important; object-fit: cover;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
     }
   </style>
 </head>
@@ -22,7 +29,7 @@
   <div id="container"></div>
 
   <script>
-    window.addEventListener('wheel', e => {
+    window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
@@ -38,59 +45,33 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
-      renderer.localClippingEnabled = true;
-
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
+      let animationStartTime = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-
-        // Clipping plane: normal along local Z axis (plane faces along +Z after rotation)
-        const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0.5);
-
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
+          opacity: 0,
           side: THREE.DoubleSide,
-          clippingPlanes: [clipPlane],
-          clipShadows: true,
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-
-        // Lift plane above card by moving it UP in world Y axis:
-        pngPlane.position.set(0, 0.05, 0); // just above card surface
-
-        // Rotate plane upright (flat on XY plane)
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
+        pngPlane.position.set(0, 0.01, 0); // 0.01 Y lifts it *above* the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // upright
 
         anchor.group.add(pngPlane);
 
-        const fadeDuration = 3000;
-        const startTime = performance.now();
-
-        renderer.setAnimationLoop(() => {
-          if (anchor.group.visible && pngPlane) {
-            const elapsed = performance.now() - startTime;
-            const progress = Math.min(elapsed / fadeDuration, 1);
-
-            // Animate clipping constant from 0.5 (fully clipped) to -0.5 (fully visible)
-            clipPlane.constant = 0.5 - progress;
-
-            // Rotate plane horizontally to face camera
-            const camPos = camera.position.clone();
-            anchor.group.worldToLocal(camPos);
-            const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-            pngPlane.rotation.set(-Math.PI / 2, angle, 0);
-          }
-
-          renderer.render(scene, camera);
-        });
+        // Start animation when anchor becomes visible
+        anchor.onTargetFound = () => {
+          animationStartTime = performance.now();
+        };
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -99,7 +80,30 @@
       scene.add(dirLight);
 
       await mindarThree.start();
+
+      renderer.setAnimationLoop(() => {
+        if (pngPlane) {
+          // Rotation to face camera
+          const camPos = camera.position.clone();
+          anchor.group.worldToLocal(camPos);
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0);
+
+          // Fade from bottom up
+          if (animationStartTime) {
+            const elapsed = performance.now() - animationStartTime;
+            const duration = 1000; // 1 second
+            const t = Math.min(elapsed / duration, 1);
+
+            pngPlane.material.opacity = t;
+            pngPlane.position.y = 0.01 + (0.1 * t); // rises slightly as it fades
+          }
+        }
+
+        renderer.render(scene, camera);
+      });
     });
   </script>
 </body>
 </html>
+
