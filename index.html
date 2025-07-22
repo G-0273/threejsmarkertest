@@ -65,7 +65,7 @@
         // Wrap in a group to tilt the display back
         tiltGroup = new THREE.Group();
         tiltGroup.position.set(0, 0.3, 0.3); // raise above card
-        tiltGroup.rotation.x = Math.PI / 9; // 20° backward tilt
+        tiltGroup.rotation.x = -Math.PI / 9; // 20° backward tilt
         tiltGroup.add(plane);
 
         anchor.group.add(tiltGroup);
