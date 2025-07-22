@@ -72,7 +72,7 @@
             varying vec2 vUv;
             void main() {
               vec4 color = texture2D(uTexture, vUv);
-              float alpha = smoothstep(0.0, 1.0, uFadeProgress - vUv.y);
+              float alpha = smoothstep(0.0, 1.0, vUv.y - (1.0 - uFadeProgress));
               gl_FragColor = vec4(color.rgb, color.a * alpha);
             }
           `,
@@ -85,7 +85,7 @@
         pngPlane.rotation.set(-Math.PI / 2, 0, 0);
         anchor.group.add(pngPlane);
 
-        // Animate fade-in from top to bottom
+        // Animate fade-in from bottom to top visually
         let startTime = null;
         const fadeDuration = 1000;
 
