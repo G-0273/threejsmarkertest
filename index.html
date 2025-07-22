@@ -48,7 +48,7 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let maskUniforms = null;
+      let fadeUniforms = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
@@ -63,25 +63,18 @@
           alphaTest: 0.01,
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        // Modify shader for fade effect
+        pngMaterial.onBeforeCompile = (shader) => {
+          shader.uniforms.fadeValue = { value: 1.0 };
+          fadeUniforms = shader.uniforms;
 
-        // Raise on Y axis, not Z axis:
-        pngPlane.position.set(0, 0.05, 0);
-
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
-
-        anchor.group.add(pngPlane);
-
-        // Extend shader to add fade-from-bottom effect:
-        pngPlane.material.onBeforeCompile = (shader) => {
-          shader.uniforms.fadeValue = { value: 0 };
           shader.vertexShader = `
             varying vec2 vUv;
             ${shader.vertexShader}
           `.replace(
-            `#include <uv_vertex>`,
+            '#include <uv_vertex>',
             `#include <uv_vertex>
-             vUv = uv;`
+            vUv = uv;`
           );
 
           shader.fragmentShader = `
@@ -89,16 +82,19 @@
             varying vec2 vUv;
             ${shader.fragmentShader}
           `.replace(
-            `#include <dithering_fragment>`,
+            '#include <dithering_fragment>',
             `#include <dithering_fragment>
-             // Discard pixels below fade threshold from bottom to top
-             if(vUv.y < fadeValue) {
-               discard;
-             }`
+            if (vUv.y < fadeValue) discard;`
           );
-
-          maskUniforms = shader.uniforms;
         };
+
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+
+        // Raise on Y axis so it’s above the card and avoid clipping
+        pngPlane.position.set(0, 0.05, 0);
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0);
+
+        anchor.group.add(pngPlane);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -108,22 +104,23 @@
 
       await mindarThree.start();
 
-      const fadeDuration = 2000; // milliseconds
+      const fadeDuration = 2000; // Fade duration in ms
       const startTime = performance.now();
 
       renderer.setAnimationLoop(() => {
-        if (pngPlane && maskUniforms) {
+        if (pngPlane && fadeUniforms) {
+          // Calculate fade progress (from bottom to top)
           const elapsed = performance.now() - startTime;
-          const fadeVal = Math.min(elapsed / fadeDuration, 1);
-          // Fade from bottom (fadeValue = 0 no visible, fadeValue = 1 fully visible)
-          maskUniforms.fadeValue.value = 1 - fadeVal;
+          const fadeVal = 1 - Math.min(elapsed / fadeDuration, 1);
+          fadeUniforms.fadeValue.value = fadeVal;
 
+          // Tracking rotation logic (rotate around Y)
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
-
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
         }
+
         renderer.render(scene, camera);
       });
     });
