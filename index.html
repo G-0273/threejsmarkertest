@@ -48,8 +48,7 @@
       const anchor = mindarThree.addAnchor(0);
 
       let pngPlane = null;
-      let maskMaterial = null;
-      let fadeValue = 0;
+      let maskUniforms = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
@@ -73,6 +72,7 @@
 
         anchor.group.add(pngPlane);
 
+        // Extend shader to add fade-from-bottom effect:
         pngPlane.material.onBeforeCompile = (shader) => {
           shader.uniforms.fadeValue = { value: 0 };
           shader.vertexShader = `
@@ -91,12 +91,13 @@
           `.replace(
             `#include <dithering_fragment>`,
             `#include <dithering_fragment>
+             // Discard pixels below fade threshold from bottom to top
              if(vUv.y < fadeValue) {
                discard;
              }`
           );
 
-          maskMaterial = shader.uniforms;
+          maskUniforms = shader.uniforms;
         };
       });
 
@@ -107,17 +108,19 @@
 
       await mindarThree.start();
 
-      const fadeDuration = 2000;
+      const fadeDuration = 2000; // milliseconds
       const startTime = performance.now();
 
       renderer.setAnimationLoop(() => {
-        if (pngPlane && maskMaterial) {
+        if (pngPlane && maskUniforms) {
           const elapsed = performance.now() - startTime;
-          fadeValue = Math.min(elapsed / fadeDuration, 1);
-          maskMaterial.fadeValue.value = 1 - fadeValue;
+          const fadeVal = Math.min(elapsed / fadeDuration, 1);
+          // Fade from bottom (fadeValue = 0 no visible, fadeValue = 1 fully visible)
+          maskUniforms.fadeValue.value = 1 - fadeVal;
 
           const camPos = camera.position.clone();
           anchor.group.worldToLocal(camPos);
+
           const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
           pngPlane.rotation.set(-Math.PI / 2, angle, 0);
         }
