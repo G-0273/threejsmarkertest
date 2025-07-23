@@ -47,6 +47,10 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
+      // Create a group to apply tilt rotation
+      const tiltGroup = new THREE.Group();
+      anchor.group.add(tiltGroup);
+
       let pngPlane = null;
 
       const textureLoader = new THREE.TextureLoader();
@@ -61,12 +65,14 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.4, 0.1); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(60), 0, 0);
+        // Position relative to the tiltGroup
+        pngPlane.position.set(0, 0.4, 0.1);
+        pngPlane.rotation.set(0, 0, 0); // no rotation here
 
+        tiltGroup.add(pngPlane);
 
-
-        anchor.group.add(pngPlane);
+        // Apply fixed tilt rotation once to the group
+        tiltGroup.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(60), 0, 0);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
