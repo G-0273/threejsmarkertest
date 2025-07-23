@@ -62,7 +62,8 @@
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0.3, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
+        pngPlane.rotation.set(THREE.MathUtils.degToRad(70), 0, 0);
+
 
         anchor.group.add(pngPlane);
       });
