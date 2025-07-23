@@ -46,29 +46,66 @@
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
-
       let tiltGroup = null;
 
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
 
-        const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const planeMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
+        const geometry = new THREE.PlaneGeometry(1.5, 1);
+
+        const material = new THREE.ShaderMaterial({
+          uniforms: {
+            uTexture: { value: texture },
+            uTime: { value: 0.0 }
+          },
+          vertexShader: `
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            uniform sampler2D uTexture;
+            uniform float uTime;
+            varying vec2 vUv;
+            void main() {
+              vec4 tex = texture2D(uTexture, vUv);
+              float cutoff = clamp(uTime - (1.0 - vUv.y), 0.0, 1.0);
+              gl_FragColor = vec4(tex.rgb, tex.a * cutoff);
+            }
+          `,
+          transparent: true
         });
 
-        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        const plane = new THREE.Mesh(geometry, material);
 
-        // Wrap in a group to tilt the display back
+        plane.rotation.set(-Math.PI / 2, 0, 0); // upright
+        plane.position.set(0, 0, 0);
+
         tiltGroup = new THREE.Group();
-        tiltGroup.position.set(0, 0.3, 0.3); // raise above card
-        tiltGroup.rotation.x = -Math.PI / 9; // 20° backward tilt
+        tiltGroup.rotation.x = -Math.PI / 9; // 20°
+        tiltGroup.position.set(0, 0.3, 0.3);
         tiltGroup.add(plane);
 
         anchor.group.add(tiltGroup);
+
+        const clock = new THREE.Clock();
+
+        renderer.setAnimationLoop(() => {
+          if (tiltGroup) {
+            const camPos = camera.position.clone();
+            anchor.group.worldToLocal(camPos);
+
+            const angleY = -Math.atan2(camPos.x, camPos.z);
+            tiltGroup.rotation.y = angleY;
+
+            material.uniforms.uTime.value = Math.min(clock.getElapsedTime(), 1.0);
+          }
+
+          renderer.render(scene, camera);
+        });
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -77,18 +114,6 @@
       scene.add(dirLight);
 
       await mindarThree.start();
-
-      renderer.setAnimationLoop(() => {
-        if (tiltGroup) {
-          const camPos = camera.position.clone();
-          anchor.group.worldToLocal(camPos);
-
-          const angleY = -Math.atan2(camPos.x, camPos.z);
-          tiltGroup.rotation.y = angleY; // Rotate only around Y, preserve the backward tilt
-        }
-
-        renderer.render(scene, camera);
-      });
     });
   </script>
 </body>
