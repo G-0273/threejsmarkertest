@@ -29,24 +29,16 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
+    // Force HD camera
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
+        constraints.video = {
+          ...constraints.video,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'environment',
+        };
       }
       return origGetUserMedia(constraints);
     };
@@ -54,6 +46,7 @@
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
+
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
       window.addEventListener(event, e => e.preventDefault())
     );
@@ -69,13 +62,10 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Commented out PNG logic for now
-      /*
-      let pngPlane = null;
+      // Load and place PNG hologram
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
@@ -83,41 +73,44 @@
           side: THREE.DoubleSide,
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3); // hologram upright
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-
         anchor.group.add(pngPlane);
       });
-      */
 
-      // Add video plane
+      // Load and place video flat on card
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      await video.play();
+
+      await video.play().catch(err => {
+        console.error("Video play error:", err);
+      });
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBAFormat;
 
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1); // match PNG size
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0); // flat on the card
+      videoPlane.position.set(0, 0, 0); // flat on card
       videoPlane.rotation.set(-Math.PI / 2, 0, 0);
 
       anchor.group.add(videoPlane);
 
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
+      // Start AR
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
