@@ -29,16 +29,23 @@
   <div id="container"></div>
 
   <script>
-    // Force HD camera
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
-        constraints.video = {
-          ...((typeof constraints.video === 'object') ? constraints.video : {}),
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'environment',
-        };
+        if (typeof constraints.video === 'object') {
+          constraints.video = {
+            ...constraints.video,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        } else {
+          constraints.video = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        }
       }
       return origGetUserMedia(constraints);
     };
@@ -46,6 +53,7 @@
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
+
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
       window.addEventListener(event, e => e.preventDefault())
     );
@@ -61,9 +69,31 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      const textureLoader = new THREE.TextureLoader();
+      // Load and play the video
+      const video = document.createElement("video");
+      video.src = "circuit_1.mp4";
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play();
 
-      // PNG
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.flipY = false;
+
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide
+      });
+
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.01, 0); // flat on card
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // lay flat
+      anchor.group.add(videoPlane);
+
+      // Load PNG upright like a hologram
+      const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
@@ -71,47 +101,23 @@
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
+          depthWrite: true,
+          depthTest: true,
         });
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-
+        pngPlane.position.set(0, 0.1, 0.3); // slightly above card, back a bit
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // tilt up
         anchor.group.add(pngPlane);
       });
 
-      // MP4 video
-      const video = document.createElement('video');
-      video.src = "circuit_1.mp4";
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.autoplay = true;
-
-      await video.play().catch(() => {
-        console.warn("Video autoplay failed – user interaction may be required");
-      });
-
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.flipY = false;
-
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.01, 0); // Slightly above card
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat on card
-
-      anchor.group.add(videoPlane);
-
-      // Lighting
+      // Lights
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
       await mindarThree.start();
-
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
