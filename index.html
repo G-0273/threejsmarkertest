@@ -2,31 +2,49 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR Projection</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    html, body { margin:0; padding:0; overflow:hidden; touch-action:none; }
-    #container { width:100vw; height:100vh; position:relative; }
-    canvas     { width:100% !important; height:100% !important; object-fit:cover; }
+    html, body {
+      margin: 0; padding: 0; overflow: hidden; touch-action: none;
+    }
+    #container {
+      width: 100vw; height: 100vh; position: relative;
+    }
+    canvas {
+      width: 100% !important; height: 100% !important; object-fit: cover;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
-
   <script>
-    /* ---------- HD‑camera patch (unchanged) ---------- */
+    // Force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (c)=>{
-      if (c?.video){
-        c.video = { ...c.video, width:{ideal:1280}, height:{ideal:720}, facingMode:'environment' };
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      if (constraints && constraints.video) {
+        if (typeof constraints.video === 'object') {
+          constraints.video = {
+            ...constraints.video,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        } else {
+          constraints.video = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        }
       }
-      return origGetUserMedia(c);
+      return origGetUserMedia(constraints);
     };
 
-    window.addEventListener('wheel', e=>{ if (e.ctrlKey) e.preventDefault(); }, {passive:false});
-    ['gesturestart','gesturechange','gestureend'].forEach(evt=>window.addEventListener(evt,e=>e.preventDefault()));
+    window.addEventListener('wheel', (e) => { if(e.ctrlKey) e.preventDefault(); }, { passive: false });
+    ['gesturestart','gesturechange','gestureend'].forEach(ev => window.addEventListener(ev, e => e.preventDefault()));
 
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -39,52 +57,59 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      /* ---------- PNG BLOCK (commented out) ----------
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", tex => {
-        tex.flipY = false;
-        const pngPlane = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.5, 1),
-          new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
-        );
-        pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI/2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(pngPlane);
-      });
-      --------------------------------------------------*/
-
-      /* ---------- VIDEO BLOCK ---------- */
+      // --- VIDEO SETUP ---
       const video = document.createElement("video");
-      video.src        = "circuit_1.mp4";
-      video.crossOrigin= "anonymous";
-      video.loop       = true;
-      video.muted      = true;
-      video.playsInline= true;
-      await video.play().catch(err=>console.warn("Video autoplay blocked:", err));
+      video.src = "circuit_1.mp4";  // make sure exact filename
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play().catch(e => console.warn("Video play failed:", e));
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format    = THREE.RGBAFormat;
+      videoTexture.format = THREE.RGBAFormat;
 
-      const videoPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.5, 1),          // same size as PNG
-        new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide })
-      );
-      videoPlane.position.set(0, 0, 0);            // flat on card
-      videoPlane.rotation.set(-Math.PI/2, 0, 0);   // face upward
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);  // same size as your PNG plane
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+
+      videoPlane.position.set(0, 0, 0);  // flat on the card surface
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // lay flat horizontally
+
       anchor.group.add(videoPlane);
-      /* ---------------------------------- */
+      // --- END VIDEO SETUP ---
 
-      /* ---------- Lights (unchanged) ---------- */
+      /*
+      // PNG setup - commented out per your request
+      let pngPlane = null;
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false;
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide,
+        });
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3); // slightly above
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        anchor.group.add(pngPlane);
+      });
+      */
+
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-      dir.position.set(1,2,3);
-      scene.add(dir);
-      /* ---------------------------------------- */
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
       await mindarThree.start();
-      renderer.setAnimationLoop(()=>renderer.render(scene, camera));
+
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
     });
   </script>
 </body>
