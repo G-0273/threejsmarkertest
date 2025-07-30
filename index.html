@@ -31,8 +31,9 @@
   <div id="container"></div>
 
   <script>
-    // **KEEP YOUR ORIGINAL CAMERA PATCH INTACT**
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    const isSafariIOS = /iP(ad|hone|od).+Version\/[\d.]+.*Safari/i.test(navigator.userAgent);
+
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
         if (typeof constraints.video === 'object') {
@@ -40,13 +41,13 @@
             ...constraints.video,
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            facingMode: 'environment',
+            ...(isSafariIOS ? {} : { facingMode: 'environment' }),
           };
         } else {
           constraints.video = {
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            facingMode: 'environment',
+            ...(isSafariIOS ? {} : { facingMode: 'environment' }),
           };
         }
       }
@@ -71,7 +72,6 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Video element setup
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
@@ -91,24 +91,6 @@
       videoPlane.rotation.set(-Math.PI / 2, 0, 0);
       anchor.group.add(videoPlane);
 
-      // Your PNG plane (commented out, as you said)
-      /*
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        });
-        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(pngPlane);
-      });
-      */
-
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -116,7 +98,6 @@
 
       await mindarThree.start();
 
-      // Play video when marker detected, pause when lost
       anchor.onTargetFound = () => {
         if (video.paused) video.play().catch(e => console.warn("Video play error:", e));
       };
