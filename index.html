@@ -8,14 +8,12 @@
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       overflow: hidden;
       touch-action: none;
     }
     #container {
-      width: 100vw;
-      height: 100vh;
+      width: 100vw; height: 100vh;
       position: relative;
     }
     canvas {
@@ -27,9 +25,8 @@
 </head>
 <body>
   <div id="container"></div>
-
   <script>
-    // Patch getUserMedia to force HD camera constraints
+    // Patch getUserMedia for HD environment camera
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -69,34 +66,34 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- Video setup ---
+      // Create video element with muted and playsInline BEFORE src
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4";
-      video.crossOrigin = "anonymous";
-      video.loop = true;
       video.muted = true;
       video.playsInline = true;
+      video.loop = true;
+      video.crossOrigin = "anonymous";
+      video.src = "circuit_1.mp4";
+
+      // Load video but do NOT play yet
+      video.load();
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBAFormat;
 
-      // Video plane flat on the card, size same as PNG (1.5 x 1)
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
       const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
 
-      // Position flat on the card (Z=0, Y=0), laying flat with rotation -90 deg on X
       videoPlane.position.set(0, 0, 0);
       videoPlane.rotation.set(-Math.PI / 2, 0, 0);
 
       anchor.group.add(videoPlane);
 
-      // --- Your original PNG setup (commented out) ---
       /*
+      // Original PNG setup commented out
       let pngPlane = null;
-
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -109,8 +106,8 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
+        pngPlane.position.set(0, 0.1, 0.3);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
 
         anchor.group.add(pngPlane);
       });
@@ -123,13 +120,34 @@
 
       await mindarThree.start();
 
-      // Play video only when marker is found, pause when lost
-      anchor.onTargetFound = () => {
-        if (video.paused) video.play().catch(e => console.warn("Video play failed:", e));
+      // Play video only when marker detected
+      anchor.onTargetFound = async () => {
+        if (video.paused) {
+          try {
+            await video.play();
+          } catch(e) {
+            console.warn("Video play failed, user interaction might be needed:", e);
+          }
+        }
       };
       anchor.onTargetLost = () => {
-        if (!video.paused) video.pause();
+        if (!video.paused) {
+          video.pause();
+        }
       };
+
+      // Fallback: unlock video on first user interaction if Safari blocks autoplay
+      const unlockVideo = async () => {
+        if (video.paused) {
+          try {
+            await video.play();
+            document.body.removeEventListener('touchstart', unlockVideo);
+            document.body.removeEventListener('click', unlockVideo);
+          } catch {}
+        }
+      };
+      document.body.addEventListener('touchstart', unlockVideo, { once: true });
+      document.body.addEventListener('click', unlockVideo, { once: true });
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
