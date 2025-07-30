@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>MindAR Video Safari Fix</title>
+  <title>MindAR Video iOS Fix</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -36,14 +36,25 @@
 
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
-      video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.setAttribute("playsinline", "");
       video.setAttribute("webkit-playsinline", "");
-      
-      // Load video metadata first
-      await video.load();
+      video.setAttribute("preload", "auto");
+
+      // iOS requires interaction sometimes. Prepare in advance.
+      video.addEventListener("loadeddata", () => {
+        console.log("✅ Video loaded successfully");
+      });
+
+      // Preload to trigger decoding
+      try {
+        await video.play();
+        video.pause();
+        console.log("✅ Preloaded video");
+      } catch (e) {
+        console.warn("⚠️ Video preload/play failed", e);
+      }
 
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
@@ -57,19 +68,30 @@
       videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
       anchor.group.add(videoMesh);
 
+      // Optional: background plane (to prevent blending with black AR camera)
+      const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+      const bgPlane = new THREE.Mesh(geometry, bgMaterial);
+      bgPlane.position.copy(videoMesh.position);
+      bgPlane.rotation.copy(videoMesh.rotation);
+      bgPlane.position.z -= 0.001;
+      anchor.group.add(bgPlane);
+
       anchor.onTargetFound = async () => {
+        console.log("📍 Marker Found");
         try {
           await video.play();
+          console.log("▶️ Video started");
         } catch (e) {
-          console.warn("Video play blocked or delayed", e);
+          console.warn("🚫 Video play failed", e);
         }
       };
 
       anchor.onTargetLost = () => {
+        console.log("❌ Marker Lost");
         video.pause();
       };
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+      scene.add(new THREE.AmbientLight(0xffffff, 1.0));
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
