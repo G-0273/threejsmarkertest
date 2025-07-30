@@ -3,18 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR Projection with Video - Auto Start</title>
+  <title>AR Projection</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; touch-action: none; height: 100%;
+      margin: 0; padding: 0;
+      overflow: hidden;
+      touch-action: none;
+      height: 100%;
+      width: 100%;
+      background: black;
     }
     #container {
-      width: 100vw; height: 100vh; position: relative;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
     }
     canvas {
-      width: 100% !important; height: 100% !important; object-fit: cover;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
     }
   </style>
 </head>
@@ -22,7 +31,7 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
+    // Patch getUserMedia to request HD environment camera
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -51,60 +60,81 @@
       window.addEventListener(event, e => e.preventDefault())
     );
 
-    async function startAR() {
-      try {
-        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: document.querySelector("#container"),
-          imageTargetSrc: "./targets (1).mind",
-          filterMinCF: 0.05,
-          filterBeta: 0.15,
+    document.addEventListener("DOMContentLoaded", async () => {
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#container"),
+        imageTargetSrc: "./targets (1).mind",
+        filterMinCF: 0.05,
+        filterBeta: 0.15,
+      });
+
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
+
+      // Video element setup (do NOT play yet!)
+      const video = document.createElement("video");
+      video.src = "circuit_1.mp4";
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
+
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0);
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0);
+      anchor.group.add(videoPlane);
+
+      // PNG setup (commented out, enable if needed)
+      /*
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false;
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide,
         });
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        anchor.group.add(pngPlane);
+      });
+      */
 
-        const { renderer, scene, camera } = mindarThree;
-        const anchor = mindarThree.addAnchor(0);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
-        const video = document.createElement("video");
-        video.src = "circuit_1.mp4";
-        video.crossOrigin = "anonymous";
-        video.loop = true;
-        video.muted = true;      // muted for autoplay to work
-        video.playsInline = true;
+      // Start MindAR camera & tracking
+      await mindarThree.start();
 
-        // Attempt to play video (may fail without user gesture)
-        await video.play();
+      // Play video only when marker detected
+      anchor.onTargetFound = () => {
+        if (video.paused) {
+          video.play().catch(e => {
+            console.warn("Video play failed:", e);
+          });
+        }
+      };
+      anchor.onTargetLost = () => {
+        if (!video.paused) {
+          video.pause();
+        }
+      };
 
-        const videoTexture = new THREE.VideoTexture(video);
-        videoTexture.minFilter = THREE.LinearFilter;
-        videoTexture.magFilter = THREE.LinearFilter;
-        videoTexture.format = THREE.RGBAFormat;
-
-        const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.position.set(0, 0, 0);
-        videoPlane.rotation.set(-Math.PI / 2, 0, 0);
-
-        anchor.group.add(videoPlane);
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(1, 2, 3);
-        scene.add(dirLight);
-
-        await mindarThree.start();
-
-        renderer.setAnimationLoop(() => {
-          renderer.render(scene, camera);
-        });
-
-      } catch(e) {
-        console.warn("Autoplay failed or AR start failed:", e);
-        // Optional: fallback — show user a prompt or button here
-      }
-    }
-
-    // Try auto start on page load
-    startAR();
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
+    });
   </script>
 </body>
 </html>
