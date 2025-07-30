@@ -29,34 +29,17 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
+        constraints.video = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'environment'
+        };
       }
       return origGetUserMedia(constraints);
     };
-
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
 
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -69,64 +52,61 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- VIDEO SETUP ---
+      // VIDEO SETUP
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
+      video.autoplay = true;
 
-      // Wait for metadata before creating video plane
-      video.addEventListener('loadedmetadata', async () => {
-        const aspect = video.videoWidth / video.videoHeight;
-        const height = 1; // fix height at 1 unit
-        const width = height * aspect;
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.flipY = false;
 
-        const videoTexture = new THREE.VideoTexture(video);
-        videoTexture.flipY = false;
-
-        const videoGeometry = new THREE.PlaneGeometry(width, height);
-        const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.position.set(0, 0.01, 0);   // flat on the card surface, slight offset to avoid z-fighting
-        videoPlane.rotation.set(-Math.PI / 2, 0, 0);  // lay flat
-
-        anchor.group.add(videoPlane);
-
-        try {
-          await video.play();
-        } catch(e) {
-          console.warn("Video play failed:", e);
-        }
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide
       });
 
-      // --- PNG SETUP (unchanged) ---
-      let pngPlane = null;
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.001, 0); // Very slightly above marker
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat on the marker
 
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
+      anchor.group.add(videoPlane);
+
+      // PLAY VIDEO AFTER START
+      anchor.onTargetFound = () => {
+        if (video.readyState >= 2) {
+          video.play();
+        } else {
+          video.addEventListener('canplay', () => video.play());
+        }
+      };
+
+      // PNG SETUP
+      const loader = new THREE.TextureLoader();
+      loader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
-          side: THREE.DoubleSide,
+          side: THREE.DoubleSide
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3); // Floating above
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
 
         anchor.group.add(pngPlane);
       });
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
+      const light = new THREE.DirectionalLight(0xffffff, 0.8);
+      light.position.set(1, 2, 3);
+      scene.add(light);
 
       await mindarThree.start();
 
