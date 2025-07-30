@@ -69,29 +69,40 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // --- ADD VIDEO SETUP ---
+      // --- VIDEO SETUP ---
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      await video.play().catch(e => console.warn("Video play failed:", e));
 
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.flipY = false;
+      // Wait for metadata before creating video plane
+      video.addEventListener('loadedmetadata', async () => {
+        const aspect = video.videoWidth / video.videoHeight;
+        const height = 1; // fix height at 1 unit
+        const width = height * aspect;
 
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+        const videoTexture = new THREE.VideoTexture(video);
+        videoTexture.flipY = false;
 
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.01, 0);   // flat on the card surface, very slight offset above 0 to avoid z-fighting
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0);  // lay flat
+        const videoGeometry = new THREE.PlaneGeometry(width, height);
+        const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
 
-      anchor.group.add(videoPlane);
-      // --- END VIDEO SETUP ---
+        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+        videoPlane.position.set(0, 0.01, 0);   // flat on the card surface, slight offset to avoid z-fighting
+        videoPlane.rotation.set(-Math.PI / 2, 0, 0);  // lay flat
 
-      // YOUR ORIGINAL PNG SETUP
+        anchor.group.add(videoPlane);
+
+        try {
+          await video.play();
+        } catch(e) {
+          console.warn("Video play failed:", e);
+        }
+      });
+
+      // --- PNG SETUP (unchanged) ---
       let pngPlane = null;
 
       const textureLoader = new THREE.TextureLoader();
