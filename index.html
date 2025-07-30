@@ -2,30 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MindAR AR Video</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>MindAR Video Safari Fix</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    body, html {
+    html, body {
       margin: 0;
       overflow: hidden;
+      background: black;
       touch-action: none;
     }
     #container {
       width: 100vw;
       height: 100vh;
     }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-    }
   </style>
 </head>
 <body>
   <div id="container"></div>
-
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -44,25 +39,30 @@
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
-      video.setAttribute("playsinline", "true"); // for iOS
-      await video.play().catch(() => {}); // try to preload, Safari may block
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
+      
+      // Load video metadata first
+      await video.load();
 
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
       texture.format = THREE.RGBFormat;
 
-      const geometry = new THREE.PlaneGeometry(1.5, 1); // Adjust size as needed
+      const geometry = new THREE.PlaneGeometry(1.5, 1);
       const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
       const videoMesh = new THREE.Mesh(geometry, material);
-      videoMesh.position.set(0, 0.1, 0.3); // Float above card
-      videoMesh.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-
+      videoMesh.position.set(0, 0.1, 0.3);
+      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
       anchor.group.add(videoMesh);
 
-      anchor.onTargetFound = () => {
-        video.currentTime = 0;
-        video.play();
+      anchor.onTargetFound = async () => {
+        try {
+          await video.play();
+        } catch (e) {
+          console.warn("Video play blocked or delayed", e);
+        }
       };
 
       anchor.onTargetLost = () => {
@@ -70,7 +70,6 @@
       };
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
