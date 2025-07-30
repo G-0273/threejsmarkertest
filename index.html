@@ -29,7 +29,7 @@
   <div id="container"></div>
 
   <script>
-    // Force HD camera
+    // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -69,7 +69,9 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Add PNG
+      // Commented out PNG logic for now
+      /*
+      let pngPlane = null;
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -81,50 +83,41 @@
           side: THREE.DoubleSide,
         });
 
-        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Upright position
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilted back
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+
         anchor.group.add(pngPlane);
       });
+      */
 
-      // Add video flat on card
+      // Add video plane
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.setAttribute("muted", "true");
-      video.autoplay = true;
-
-      // Force play on click (mobile autoplay)
-      document.body.addEventListener("click", () => {
-        video.play();
-      }, { once: true });
+      video.playsInline = true;
+      await video.play();
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      videoTexture.format = THREE.RGBAFormat;
 
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({
-        map: videoTexture,
-        side: THREE.DoubleSide,
-      });
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1); // match PNG size
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0); // flat on the card
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0);
 
-      const videoMesh = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoMesh.position.set(0, 0.01, 0); // Flat on card
-      anchor.group.add(videoMesh);
+      anchor.group.add(videoPlane);
 
-      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Start AR
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
