@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AR Projection</title>
+  <title>AR Projection with Video - Auto Start</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; touch-action: none;
+      margin: 0; padding: 0; overflow: hidden; touch-action: none; height: 100%;
     }
     #container {
       width: 100vw; height: 100vh; position: relative;
@@ -20,8 +20,9 @@
 </head>
 <body>
   <div id="container"></div>
+
   <script>
-    // Force HD camera constraints
+    // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -43,74 +44,67 @@
       return origGetUserMedia(constraints);
     };
 
-    window.addEventListener('wheel', (e) => { if(e.ctrlKey) e.preventDefault(); }, { passive: false });
-    ['gesturestart','gesturechange','gestureend'].forEach(ev => window.addEventListener(ev, e => e.preventDefault()));
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
+      window.addEventListener(event, e => e.preventDefault())
+    );
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#container"),
-        imageTargetSrc: "./targets (1).mind",
-        filterMinCF: 0.05,
-        filterBeta: 0.15,
-      });
-
-      const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
-
-      // --- VIDEO SETUP ---
-      const video = document.createElement("video");
-      video.src = "circuit_1.mp4";  // make sure exact filename
-      video.crossOrigin = "anonymous";
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      await video.play().catch(e => console.warn("Video play failed:", e));
-
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBAFormat;
-
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);  // same size as your PNG plane
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-
-      videoPlane.position.set(0, 0, 0);  // flat on the card surface
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // lay flat horizontally
-
-      anchor.group.add(videoPlane);
-      // --- END VIDEO SETUP ---
-
-      /*
-      // PNG setup - commented out per your request
-      let pngPlane = null;
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
+    async function startAR() {
+      try {
+        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+          container: document.querySelector("#container"),
+          imageTargetSrc: "./targets (1).mind",
+          filterMinCF: 0.05,
+          filterBeta: 0.15,
         });
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // slightly above
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(pngPlane);
-      });
-      */
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
+        const { renderer, scene, camera } = mindarThree;
+        const anchor = mindarThree.addAnchor(0);
 
-      await mindarThree.start();
+        const video = document.createElement("video");
+        video.src = "circuit_1.mp4";
+        video.crossOrigin = "anonymous";
+        video.loop = true;
+        video.muted = true;      // muted for autoplay to work
+        video.playsInline = true;
 
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    });
+        // Attempt to play video (may fail without user gesture)
+        await video.play();
+
+        const videoTexture = new THREE.VideoTexture(video);
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.format = THREE.RGBAFormat;
+
+        const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+        videoPlane.position.set(0, 0, 0);
+        videoPlane.rotation.set(-Math.PI / 2, 0, 0);
+
+        anchor.group.add(videoPlane);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(1, 2, 3);
+        scene.add(dirLight);
+
+        await mindarThree.start();
+
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera);
+        });
+
+      } catch(e) {
+        console.warn("Autoplay failed or AR start failed:", e);
+        // Optional: fallback — show user a prompt or button here
+      }
+    }
+
+    // Try auto start on page load
+    startAR();
   </script>
 </body>
 </html>
