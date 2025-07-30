@@ -2,105 +2,191 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MindAR AR Card with Video and Model</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
       overflow: hidden;
-      touch-action: none;
     }
     #container {
       width: 100vw;
       height: 100vh;
       position: relative;
     }
+    #start-button {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 1.5em;
+      z-index: 2;
+      cursor: pointer;
+    }
+    #start-button.hidden {
+      display: none;
+    }
     canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
       width: 100% !important;
       height: 100% !important;
       object-fit: cover;
+      z-index: 0;
     }
   </style>
 </head>
 <body>
   <div id="container"></div>
+  <div id="start-button" class="hidden">Tap to Start AR</div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
-    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      // Modify video constraints only, add ideal width/height
-      if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          // If constraints.video is just 'true', replace with object constraints
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
-      }
-      return origGetUserMedia(constraints);
-    };
-
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
-
-    document.addEventListener("DOMContentLoaded", async () => {
+    const start = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./targets (1).mind",
-        filterMinCF: 0.05,
-        filterBeta: 0.15,
+        imageTargetSrc: "./targets.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
 
-      let pngPlane = null;
+      // Ensure correct renderer size and adjust on window resize
+      const setSize = () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      };
 
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
+      setSize();
+      window.addEventListener('resize', setSize);
 
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        });
+      // Lighting for 3D models
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      scene.add(hemiLight);
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
-
-        anchor.group.add(pngPlane);
-      });
-
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight.position.set(0, 1, 1);
       scene.add(dirLight);
 
+      const anchor = mindarThree.addAnchor(0);
+
+      // Load video
+      const video = document.createElement("video");
+      video.src = "video.mp4";
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+
+      const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBFormat;
+
+      const videoGeometry = new THREE.PlaneGeometry(1.2, 0.8);
+      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, -0.01);
+      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      anchor.group.add(videoPlane);
+
+      // Load card front image
+      const cardTexture = new THREE.TextureLoader().load("card.JPG");
+      const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
+      const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
+      const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
+      cardPlane.position.set(0, 0, 0.001);
+      anchor.group.add(cardPlane);
+
+      // Load GLB model safely with blob size check
+      fetch("models/3floor.glb")
+        .then(res => res.blob())
+        .then(blob => {
+          console.log("Blob size:", blob.size); // Debug line
+
+          if (blob.size < 1000) {
+            throw new Error("GLB file too small — likely invalid or not served correctly");
+          }
+
+          return blob.arrayBuffer();
+        })
+        .then(arrayBuffer => {
+          const loader = new THREE.GLTFLoader();
+          loader.parse(arrayBuffer, "", (gltf) => {
+            const model = gltf.scene;
+
+            // Adjust model scale, rotation, position
+            model.scale.set(0.05, 0.05, 0.05);
+            model.rotation.set(Math.PI / 2, Math.PI, 0); // flat + flipped
+            model.position.set(0, -0.09, 0); // just above card
+
+            anchor.group.add(model);
+          }, (err) => {
+            console.error("GLB parse error:", err);
+          });
+        })
+        .catch((err) => {
+          console.error("Error loading GLB model:", err);
+        });
+      // const cardTexture = new THREE.TextureLoader().load("card.JPG");
+      // const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
+      // const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
+      // const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
+      // cardPlane.position.set(0, 0, 0.001); 
+      // anchor.group.add(cardPlane);
+
+      // Load GLB model (building)
+      const gltfLoader = new THREE.GLTFLoader();
+      gltfLoader.load("models/3floor.glb", (gltf) => {
+        const model = gltf.scene;
+
+        // Scale the model to make it much smaller
+        model.scale.set(0.02, 0.02, 0.02);  // Make the model much smaller
+
+        // Adjust the model's rotation so it faces the front and is flat on the card
+        model.rotation.set(0, Math.PI, 0);  // Rotate 180 degrees around Y-axis for correct front view
+        model.rotation.x = Math.PI / 2;  // Rotate 90 degrees around the X-axis to make the building flat
+
+        // Adjust the model's position to bring it closer to the card
+        model.position.set(0, -0.1, 0);   // Lower the model on the Y-axis to bring it closer to the card
+
+        // Add the model to the anchor group
+        anchor.group.add(model);
+      }, undefined, (error) => {
+        console.error("Error loading GLB model:", error);
+      });
+
       await mindarThree.start();
+
+      try {
+        await video.play();
+      } catch (err) {
+        const startButton = document.getElementById("start-button");
+        startButton.classList.remove("hidden");
+        startButton.addEventListener("click", async () => {
+          await video.play();
+          startButton.classList.add("hidden");
+        });
+      }
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
+    };
+
+    start().catch(err => {
+      console.error("MindAR failed to start:", err);
     });
   </script>
 </body>
