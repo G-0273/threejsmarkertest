@@ -29,6 +29,7 @@
   <div id="container"></div>
 
   <script>
+    // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -68,25 +69,23 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Add PNG overlay (floating)
+      // PNG IMAGE PLANE
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0.1, 0.3);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
-      // Add video texture (flat on card)
+      // VIDEO PLANE
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
@@ -94,18 +93,24 @@
       video.muted = true;
       video.playsInline = true;
       video.autoplay = true;
-
       await video.play();
 
       const videoTexture = new THREE.VideoTexture(video);
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+      videoTexture.flipY = false;
 
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        side: THREE.DoubleSide,
+      });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0); // flat on card
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // flat horizontal
+
+      videoPlane.position.set(0, 0.01, 0); // flat on card
+      videoPlane.rotation.x = -Math.PI / 2;
+
       anchor.group.add(videoPlane);
 
+      // LIGHTING
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
