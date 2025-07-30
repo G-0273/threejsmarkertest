@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection</title>
+  <title>MindAR AR Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    html, body {
-      margin: 0; padding: 0;
+    body, html {
+      margin: 0;
       overflow: hidden;
       touch-action: none;
     }
     #container {
-      width: 100vw; height: 100vh;
-      position: relative;
+      width: 100vw;
+      height: 100vh;
     }
     canvas {
       width: 100% !important;
@@ -25,129 +25,53 @@
 </head>
 <body>
   <div id="container"></div>
+
   <script>
-    // Patch getUserMedia for HD environment camera
-    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
-      }
-      return origGetUserMedia(constraints);
-    };
-
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
-
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./targets (1).mind",
         filterMinCF: 0.05,
         filterBeta: 0.15,
+        maxTrack: 1
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Create video element with muted and playsInline BEFORE src
       const video = document.createElement("video");
-      video.muted = true;
-      video.playsInline = true;
-      video.loop = true;
-      video.crossOrigin = "anonymous";
       video.src = "circuit_1.mp4";
+      video.crossOrigin = "anonymous";
+      video.loop = true;
+      video.muted = true;
+      video.setAttribute("playsinline", "true"); // for iOS
+      await video.play().catch(() => {}); // try to preload, Safari may block
 
-      // Load video but do NOT play yet
-      video.load();
+      const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBFormat;
 
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBAFormat;
+      const geometry = new THREE.PlaneGeometry(1.5, 1); // Adjust size as needed
+      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      const videoMesh = new THREE.Mesh(geometry, material);
+      videoMesh.position.set(0, 0.1, 0.3); // Float above card
+      videoMesh.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
 
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      anchor.group.add(videoMesh);
 
-      videoPlane.position.set(0, 0, 0);
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0);
+      anchor.onTargetFound = () => {
+        video.currentTime = 0;
+        video.play();
+      };
 
-      anchor.group.add(videoPlane);
+      anchor.onTargetLost = () => {
+        video.pause();
+      };
 
-      /*
-      // Original PNG setup commented out
-      let pngPlane = null;
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
-
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        });
-
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-
-        anchor.group.add(pngPlane);
-      });
-      */
-
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
       await mindarThree.start();
-
-      // Play video only when marker detected
-      anchor.onTargetFound = async () => {
-        if (video.paused) {
-          try {
-            await video.play();
-          } catch(e) {
-            console.warn("Video play failed, user interaction might be needed:", e);
-          }
-        }
-      };
-      anchor.onTargetLost = () => {
-        if (!video.paused) {
-          video.pause();
-        }
-      };
-
-      // Fallback: unlock video on first user interaction if Safari blocks autoplay
-      const unlockVideo = async () => {
-        if (video.paused) {
-          try {
-            await video.play();
-            document.body.removeEventListener('touchstart', unlockVideo);
-            document.body.removeEventListener('click', unlockVideo);
-          } catch {}
-        }
-      };
-      document.body.addEventListener('touchstart', unlockVideo, { once: true });
-      document.body.addEventListener('click', unlockVideo, { once: true });
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
