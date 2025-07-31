@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>MindAR Video Loop Fixed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>MindAR Video Overlay - Universal</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; height: 100%;
-      background: black;
+      margin: 0; padding: 0; overflow: hidden; height: 100%; background: black;
     }
     #container {
       width: 100vw; height: 100vh; position: relative;
@@ -18,68 +17,70 @@
 </head>
 <body>
   <div id="container"></div>
-
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
+      // Setup MindAR with your marker file
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./maintarget.mind",
-        filterMinCF: 0.05,
-        filterBeta: 0.15,
+        maxTrack: 1,
       });
 
       const { renderer, scene, camera } = mindarThree;
+
+      // Create anchor 0
       const anchor = mindarThree.addAnchor(0);
 
-      // Create video element but DON'T await play yet
+      // Create video element with best compatibility flags
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
-      video.crossOrigin = "anonymous";
       video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
+      video.muted = true;         // Required to autoplay on Safari
+      video.playsInline = true;   // Required for iOS Safari
+      video.crossOrigin = "anonymous";
 
-      // Create video texture
+      // Create Three.js video texture
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBFormat;
 
-      // Use same geometry & position as your PNG version
-      const geometry = new THREE.PlaneGeometry(1.5, 1);
+      // Create plane geometry matching video aspect ratio (adjust if needed)
+      const geometry = new THREE.PlaneGeometry(1.5, 0.84);
+
+      // Use MeshBasicMaterial with video texture, double sided
       const material = new THREE.MeshBasicMaterial({
         map: videoTexture,
-        transparent: true,
         side: THREE.DoubleSide,
+        transparent: true,
       });
 
-      const videoPlane = new THREE.Mesh(geometry, material);
-      videoPlane.position.set(0, 0.1, 0.3);
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      const videoMesh = new THREE.Mesh(geometry, material);
+      videoMesh.position.set(0, 0.1, 0.3);
+      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0); // tilt as hologram
 
-      anchor.group.add(videoPlane);
+      // Add video mesh to anchor group
+      anchor.group.add(videoMesh);
 
-      // Lighting as in PNG code
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
+      // Add ambient light for visibility (optional)
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
 
-      // Start MindAR camera session immediately
+      // Start MindAR camera immediately, no await video.play()
       await mindarThree.start();
 
-      // Play video only when marker detected
+      // Play video only when marker detected (avoids autoplay issues)
       anchor.onTargetFound = () => {
         video.play().catch(e => {
-          console.warn("Video play failed:", e);
+          console.warn("Video play error:", e);
         });
       };
 
-      // Pause video when marker lost
+      // Pause video on marker lost
       anchor.onTargetLost = () => {
         video.pause();
       };
 
+      // Render loop
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
