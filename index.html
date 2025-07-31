@@ -2,22 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MindAR Video Loop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MindAR Video Fix</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0;
-      overflow: hidden;
-      height: 100%;
+      margin: 0; padding: 0; overflow: hidden; height: 100%;
       background: black;
     }
-    #container {
-      width: 100%;
-      height: 100%;
-      position: relative;
-    }
+    #container { width: 100vw; height: 100vh; }
   </style>
 </head>
 <body>
@@ -27,46 +21,46 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./maintarget.mind", // ← YOUR marker file
-        maxTrack: 1
+        imageTargetSrc: "./maintarget.mind",
+        maxTrack: 1,
       });
 
       const { renderer, scene, camera } = mindarThree;
-
       const anchor = mindarThree.addAnchor(0);
 
-      // Create and configure video element
+      // Create video element but do NOT play it yet
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4"; // ← YOUR video file
+      video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
-      video.muted = true; // Required for autoplay on Safari
-      video.setAttribute("playsinline", "true");
-      await video.play().catch(() => {
-        console.warn("Autoplay failed – Safari may block it. Make sure it's muted.");
-      });
+      video.muted = true; // mute so autoplay allowed
+      video.playsInline = true;
 
-      // Create a video texture
       const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBFormat;
-
-      // Create a mesh with proper aspect ratio (change size if needed)
-      const geometry = new THREE.PlaneGeometry(1.5, 0.84); // Adjust for your video
+      const geometry = new THREE.PlaneGeometry(1.5, 0.84);
       const material = new THREE.MeshBasicMaterial({ map: texture });
       const videoMesh = new THREE.Mesh(geometry, material);
 
-      videoMesh.position.set(0, 0.1, 0.3); // lift slightly above the card
-      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0); // tilted like a hologram
+      videoMesh.position.set(0, 0.1, 0.3);
+      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
 
       anchor.group.add(videoMesh);
 
-      // Ambient lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 1));
-
-      // Start camera and renderer
+      // Start MindAR camera session first
       await mindarThree.start();
+
+      // Play video only when marker detected
+      anchor.onTargetFound = () => {
+        video.play().catch(e => {
+          console.warn("Video play failed:", e);
+        });
+      };
+
+      // Pause video when marker lost
+      anchor.onTargetLost = () => {
+        video.pause();
+      };
+
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
