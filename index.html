@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MindAR Video Fix</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>MindAR Video Loop</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -11,52 +11,54 @@
       margin: 0; padding: 0; overflow: hidden; height: 100%;
       background: black;
     }
-    #container { width: 100vw; height: 100vh; }
+    #container {
+      width: 100vw; height: 100vh; position: relative;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
-
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./maintarget.mind",
-        maxTrack: 1,
+        maxTrack: 1
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Create video element but do NOT play it yet
+      // Video setup
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
-      video.crossOrigin = "anonymous";
       video.loop = true;
-      video.muted = true; // mute so autoplay allowed
+      video.muted = true;
       video.playsInline = true;
+      video.crossOrigin = "anonymous";
 
+      // Video texture and mesh
       const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBFormat;
+
       const geometry = new THREE.PlaneGeometry(1.5, 0.84);
-      const material = new THREE.MeshBasicMaterial({ map: texture });
-      const videoMesh = new THREE.Mesh(geometry, material);
+      const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geometry, material);
 
-      videoMesh.position.set(0, 0.1, 0.3);
-      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
+      mesh.position.set(0, 0.1, 0.3);
+      mesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
 
-      anchor.group.add(videoMesh);
+      anchor.group.add(mesh);
 
-      // Start MindAR camera session first
+      // Start MindAR camera
       await mindarThree.start();
 
-      // Play video only when marker detected
+      // Play video on marker detection
       anchor.onTargetFound = () => {
-        video.play().catch(e => {
-          console.warn("Video play failed:", e);
-        });
+        video.play().catch(e => console.warn("Video play error:", e));
       };
-
-      // Pause video when marker lost
       anchor.onTargetLost = () => {
         video.pause();
       };
@@ -68,3 +70,4 @@
   </script>
 </body>
 </html>
+
