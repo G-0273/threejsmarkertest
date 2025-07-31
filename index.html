@@ -2,85 +2,117 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>MindAR Video Overlay - Universal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Projection Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; height: 100%; background: black;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      touch-action: none;
     }
     #container {
-      width: 100vw; height: 100vh; position: relative;
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
     }
   </style>
 </head>
 <body>
   <div id="container"></div>
+
   <script>
+    // Patch getUserMedia to force HD camera constraints
+    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      if (constraints && constraints.video) {
+        if (typeof constraints.video === 'object') {
+          constraints.video = {
+            ...constraints.video,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        } else {
+          constraints.video = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        }
+      }
+      return origGetUserMedia(constraints);
+    };
+
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
+      window.addEventListener(event, e => e.preventDefault())
+    );
+
     document.addEventListener("DOMContentLoaded", async () => {
-      // Setup MindAR with your marker file
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./maintarget.mind",
-        maxTrack: 1,
+        filterMinCF: 0.05,
+        filterBeta: 0.15,
       });
 
       const { renderer, scene, camera } = mindarThree;
-
-      // Create anchor 0
       const anchor = mindarThree.addAnchor(0);
 
-      // Create video element with best compatibility flags
+      // Create video element
       const video = document.createElement("video");
       video.src = "circuit_1.mp4";
       video.loop = true;
-      video.muted = true;         // Required to autoplay on Safari
-      video.playsInline = true;   // Required for iOS Safari
+      video.muted = true;
+      video.playsInline = true;
       video.crossOrigin = "anonymous";
 
-      // Create Three.js video texture
+      // Create video texture
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBFormat;
 
-      // Create plane geometry matching video aspect ratio (adjust if needed)
-      const geometry = new THREE.PlaneGeometry(1.5, 0.84);
-
-      // Use MeshBasicMaterial with video texture, double sided
+      // Geometry & material (same size and placement as your PNG)
+      const geometry = new THREE.PlaneGeometry(1.5, 1);
       const material = new THREE.MeshBasicMaterial({
         map: videoTexture,
-        side: THREE.DoubleSide,
         transparent: true,
+        side: THREE.DoubleSide,
       });
 
-      const videoMesh = new THREE.Mesh(geometry, material);
-      videoMesh.position.set(0, 0.1, 0.3);
-      videoMesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0); // tilt as hologram
+      const videoPlane = new THREE.Mesh(geometry, material);
+      videoPlane.position.set(0, 0.1, 0.3);
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
 
-      // Add video mesh to anchor group
-      anchor.group.add(videoMesh);
+      anchor.group.add(videoPlane);
 
-      // Add ambient light for visibility (optional)
-      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+      // Add lighting (same as original)
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
-      // Start MindAR camera immediately, no await video.play()
       await mindarThree.start();
 
-      // Play video only when marker detected (avoids autoplay issues)
+      // Play video only when marker is detected
       anchor.onTargetFound = () => {
-        video.play().catch(e => {
-          console.warn("Video play error:", e);
-        });
+        video.play().catch(e => console.warn("Video play error:", e));
       };
-
-      // Pause video on marker lost
       anchor.onTargetLost = () => {
         video.pause();
       };
 
-      // Render loop
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
