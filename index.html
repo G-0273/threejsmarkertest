@@ -62,7 +62,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // PNG tilted 45° back
+      // Tilted PNG upright like a hologram
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -78,13 +78,9 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create container object for the video
-      const videoGroup = new THREE.Group();
-      anchor.group.add(videoGroup); // add the video group to the anchor
-
-      // Setup video
+      // Load and play video
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4"; // use circuit_1.webm if needed
+      video.src = "circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.muted = true;
       video.loop = true;
@@ -92,22 +88,23 @@
       video.setAttribute("webkit-playsinline", "true");
 
       video.addEventListener('loadeddata', () => {
-        video.play().catch(e => console.warn("Video play prevented:", e));
+        video.play().catch(e => console.warn("Video play failed:", e));
 
         const videoTexture = new THREE.VideoTexture(video);
         videoTexture.encoding = THREE.sRGBEncoding;
         videoTexture.flipY = false;
 
         const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+        const videoMaterial = new THREE.MeshBasicMaterial({
+          map: videoTexture,
+          side: THREE.DoubleSide
+        });
         const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
 
-        videoPlane.position.set(0, 0, 0); // center of group
-        videoGroup.add(videoPlane);
+        videoPlane.position.set(0, 0.001, 0); // 0.001 to avoid Z-fighting with card
+        videoPlane.rotation.set(-Math.PI / 2, 0, 0); // lays FLAT on card surface
 
-        // Rotate group so plane is flat on card
-        videoGroup.rotation.set(-Math.PI / 2, 0, 0); // FLAT
-        videoGroup.position.set(0, 0, 0); // adjust if needed
+        anchor.group.add(videoPlane);
       });
 
       // Lighting
