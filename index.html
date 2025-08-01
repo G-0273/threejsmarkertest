@@ -62,7 +62,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load PNG plane (unchanged)
+      // PNG plane tilted back ~45°
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -74,13 +74,13 @@
         });
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // tilted 45 degrees back
         anchor.group.add(pngPlane);
       });
 
-      // Setup video element and texture - Safari compatible
+      // Video setup flat on card
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4";
+      video.src = "circuit_1.mp4";  // change to circuit_1.webm if needed
       video.crossOrigin = "anonymous";
       video.muted = true;
       video.loop = true;
@@ -100,9 +100,10 @@
         const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
         const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
 
-        // Position video plane above the PNG
-        videoPlane.position.set(0, 0.6, 0.3);
-        videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        // Flat on card surface
+        videoPlane.position.set(0, 0, 0);
+        videoPlane.rotation.set(-Math.PI / 2, 0, 0);
+
         anchor.group.add(videoPlane);
       });
 
