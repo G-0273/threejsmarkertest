@@ -62,7 +62,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Tilted PNG upright like a hologram
+      // Add PNG upright above the marker
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -99,10 +99,10 @@
           map: videoTexture,
           side: THREE.DoubleSide
         });
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
 
-        videoPlane.position.set(0, 0.001, 0); // 0.001 to avoid Z-fighting with card
-        videoPlane.rotation.set(-Math.PI / 2, 0, 0); // lays FLAT on card surface
+        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+        videoPlane.rotation.set(-Math.PI / 2, 0, 0); // flat on marker
+        videoPlane.position.set(0, 0.001, 0); // just above marker to avoid z-fighting
 
         anchor.group.add(videoPlane);
       });
