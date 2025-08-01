@@ -101,7 +101,7 @@
         });
 
         const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.rotation.set(-Math.PI / 2, 0, 0); // flat on marker
+        videoPlane.rotation.set(0, 0, 0); // flat on marker
         videoPlane.position.set(0, 0.001, 0); // just above marker to avoid z-fighting
 
         anchor.group.add(videoPlane);
