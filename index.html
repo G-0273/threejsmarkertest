@@ -29,7 +29,6 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -69,34 +68,33 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // ===== Video setup =====
+      // Create the video element
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4";
+      video.src = "your-video.mp4"; // <- replace this with your actual filename
+      video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      video.crossOrigin = "anonymous";
-      video.setAttribute("webkit-playsinline", "true"); // for iOS Safari
+      video.autoplay = true;
+      await video.play().catch(() => {
+        // Safari might block autoplay unless user interaction
+        console.warn("Autoplay failed. Add user gesture to start video.");
+      });
 
-      // Hide video element (optional)
-      video.style.display = "none";
-      document.body.appendChild(video);
+      const texture = new THREE.VideoTexture(video);
+      texture.flipY = false;
 
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide,
+      });
 
-      const geometry = new THREE.PlaneGeometry(1.5, 0.84);
-      const material = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(0, 0.1, 0.3);
-      mesh.rotation.set(-Math.PI / 2 - Math.PI / 4, 0, 0);
-
-      anchor.group.add(mesh);
-      // ===== End video setup =====
-
-      // Remove PNG texture loading since we're showing video now
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.1, 0.3);
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      anchor.group.add(videoPlane);
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -104,18 +102,6 @@
       scene.add(dirLight);
 
       await mindarThree.start();
-
-      // Play video when marker detected
-      anchor.onTargetFound = () => {
-        video.play().catch(e => {
-          console.warn("Video play error:", e);
-        });
-      };
-
-      // Pause video when marker lost
-      anchor.onTargetLost = () => {
-        video.pause();
-      };
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
