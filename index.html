@@ -69,16 +69,18 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load circuitdisplay.png (unchanged from your working version)
+      // Load circuitdisplay.png (keeping your exact settings)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
+        texture.encoding = THREE.sRGBEncoding;
 
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
+          alphaTest: 0.01
         });
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
@@ -93,44 +95,42 @@
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      video.setAttribute('webkit-playsinline', '');
-      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
       
-      // Important: Preload the video
-      video.load();
+      // Create video texture after metadata loads
       video.addEventListener('loadedmetadata', () => {
         const videoTexture = new THREE.VideoTexture(video);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.encoding = THREE.sRGBEncoding;
         videoTexture.format = THREE.RGBAFormat;
 
         const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
         const videoMaterial = new THREE.MeshBasicMaterial({
           map: videoTexture,
           transparent: true,
-          opacity: 1,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
+          alphaTest: 0.01
         });
 
         const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
         videoPlane.position.set(0, 0, 0); // Flat on card
         videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat rotation
         anchor.group.add(videoPlane);
-        
-        // Start playing when target found
-        mindarThree.onTargetFound = () => {
-          video.play().catch(e => console.log("Video play error:", e));
-        };
-        mindarThree.onTargetLost = () => {
-          video.pause();
-          video.currentTime = 0;
-        };
-      });
+      }, { once: true });
+
+      // Start video when target found
+      mindarThree.onTargetFound = () => {
+        video.play().catch(e => console.log("Video play error:", e));
+      };
+      mindarThree.onTargetLost = () => {
+        video.pause();
+      };
 
       // Lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      dirLight.position.set(0, 1, 1);
       scene.add(dirLight);
 
       await mindarThree.start();
