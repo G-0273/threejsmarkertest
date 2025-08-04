@@ -33,30 +33,15 @@
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
+        constraints.video = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'environment',
+          ...(typeof constraints.video === 'object' ? constraints.video : {})
+        };
       }
       return origGetUserMedia(constraints);
     };
-
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
 
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -73,8 +58,6 @@
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-        texture.encoding = THREE.sRGBEncoding;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
@@ -82,54 +65,53 @@
           side: THREE.DoubleSide,
           alphaTest: 0.01
         });
-
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
         pngPlane.position.set(0, 0.1, 0.3);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
-      // NEW: Working video implementation
+      // VIDEO SETUP - REVISED APPROACH
       const video = document.createElement('video');
       video.src = 'circuit_3.webm';
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
       video.preload = 'auto';
+
+      // Create video plane immediately (don't wait for metadata)
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
       
-      // Create video texture after metadata loads
-      video.addEventListener('loadedmetadata', () => {
-        const videoTexture = new THREE.VideoTexture(video);
-        videoTexture.minFilter = THREE.LinearFilter;
-        videoTexture.magFilter = THREE.LinearFilter;
-        videoTexture.encoding = THREE.sRGBEncoding;
-        videoTexture.format = THREE.RGBAFormat;
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+      
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0); // Flat on card
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat rotation
+      anchor.group.add(videoPlane);
 
-        const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
-        const videoMaterial = new THREE.MeshBasicMaterial({
-          map: videoTexture,
-          transparent: true,
-          side: THREE.DoubleSide,
-          alphaTest: 0.01
-        });
-
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.position.set(0, 0, 0); // Flat on card
-        videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat rotation
-        anchor.group.add(videoPlane);
-      }, { once: true });
-
-      // Start video when target found
-      mindarThree.onTargetFound = () => {
-        video.play().catch(e => console.log("Video play error:", e));
+      // Playback control
+      mindarThree.onTargetFound = async () => {
+        try {
+          await video.play();
+        } catch (err) {
+          console.log("Video play blocked:", err);
+          // Add tap-to-play button if needed
+        }
       };
-      mindarThree.onTargetLost = () => {
-        video.pause();
-      };
+      mindarThree.onTargetLost = () => video.pause();
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(0, 1, 1);
       scene.add(dirLight);
 
