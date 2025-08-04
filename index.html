@@ -2,138 +2,82 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>AR Video + PNG Test</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>MindAR AR Card with Transparent Video</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
   <style>
     body {
       margin: 0;
       overflow: hidden;
     }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    #start-button {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 1.5em;
-      z-index: 2;
-      cursor: pointer;
-    }
-    #start-button.hidden {
-      display: none;
-    }
     canvas {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-      z-index: 0;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 </head>
 <body>
-  <div id="container"></div>
-  <div id="start-button" class="hidden">Tap to Start AR</div>
-
   <script>
-    const start = async () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#container"),
-        imageTargetSrc: "./maintarget.mind"
+        container: document.body,
+        imageTargetSrc: "./targets.mind",
+        maxTrack: 1,
+        filterMinCF: 0.001,
+        filterBeta: 0.01
       });
 
       const { renderer, scene, camera } = mindarThree;
 
-      const setSize = () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-      };
-
-      setSize();
-      window.addEventListener('resize', setSize);
-
-      // Lighting
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(hemiLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(0, 1, 1);
-      scene.add(dirLight);
-
       const anchor = mindarThree.addAnchor(0);
 
-      // Transparent video setup
+      // Transparent PNG
+      const loader = new THREE.TextureLoader();
+      const pngMaterial = new THREE.MeshBasicMaterial({
+        map: loader.load("maintarget.png"),
+        transparent: true,
+        depthWrite: false
+      });
+      const pngGeometry = new THREE.PlaneGeometry(1, 0.7);
+      const pngMesh = new THREE.Mesh(pngGeometry, pngMaterial);
+      pngMesh.position.set(0, 0.35, 0);
+      pngMesh.rotation.x = -Math.PI / 2;
+      anchor.group.add(pngMesh);
+
+      // Transparent looping video (webm)
       const video = document.createElement("video");
-      video.src = "circuit.mov"; // Use your transparent .mov with ProRes4444 or WebM with alpha
+      video.src = "circuit_1.webm";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
 
-      const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBAFormat;
-
-      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const videoTexture = new THREE.VideoTexture(video);
       const videoMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
+        map: videoTexture,
         transparent: true,
-        alphaTest: 0.01 // Helps clean edges
+        side: THREE.DoubleSide,
+        depthWrite: false,
       });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01);
-      anchor.group.add(videoPlane);
+      const videoGeometry = new THREE.PlaneGeometry(1, 0.7);
+      const videoMesh = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoMesh.position.set(0, 0.7, 0); // slightly above the PNG
+      videoMesh.rotation.x = -Math.PI / 2;
+      anchor.group.add(videoMesh);
 
-      // GLB model (building)
-      const gltfLoader = new THREE.GLTFLoader();
-      gltfLoader.load("models/THE BUILD_3d_AR.glb", (gltf) => {
-        const model = gltf.scene;
-        model.scale.set(0.02, 0.02, 0.02);
-        model.rotation.set(Math.PI / 2, Math.PI, 0); // Y: 180°, X: 90° up
-        model.position.set(0, -0.1, 0);
-        anchor.group.add(model);
-      }, undefined, (error) => {
-        console.error("Error loading GLB model:", error);
-      });
+      anchor.onTargetFound = () => {
+        video.play();
+      };
+      anchor.onTargetLost = () => {
+        video.pause();
+      };
 
       await mindarThree.start();
-
-      try {
-        await video.play();
-      } catch (err) {
-        const startButton = document.getElementById("start-button");
-        startButton.classList.remove("hidden");
-        startButton.addEventListener("click", async () => {
-          await video.play();
-          startButton.classList.add("hidden");
-        });
-      }
-
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
-    };
-
-    start().catch(err => {
-      console.error("MindAR failed to start:", err);
     });
   </script>
 </body>
