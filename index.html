@@ -2,151 +2,82 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card - Video and PNG Overlay</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MindAR AR Scene</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
-    }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    #start-button {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 1.5em;
-      z-index: 2;
-      cursor: pointer;
-    }
-    #start-button.hidden {
-      display: none;
+      background: black;
     }
     canvas {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-      z-index: 0;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.7/dist/mindar-image-three.prod.js"></script>
 </head>
 <body>
-  <div id="container"></div>
-  <div id="start-button" class="hidden">Tap to Start AR</div>
+  <script type="module">
+    import { MindARThree } from "https://cdn.jsdelivr.net/npm/mind-ar@1.1.7/dist/mindar-image-three.prod.js";
 
-  <script>
     const start = async () => {
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind"
+      const mindarThree = new MindARThree({
+        container: document.body,
+        imageTargetSrc: "./targets.mind",
+        maxTrack: 1
       });
 
       const { renderer, scene, camera } = mindarThree;
 
-      const setSize = () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-      };
+      // lighting
+      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      scene.add(light);
 
-      setSize();
-      window.addEventListener('resize', setSize);
-
-      // Lighting
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(hemiLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(0, 1, 1);
-      scene.add(dirLight);
-
-      const anchor = mindarThree.addAnchor(0);
-
-      // Load circuit_1.mp4 as flat background video
+      // video element setup
       const video = document.createElement("video");
-      video.src = "circuit_1.mp4";
+      video.src = "./circuit_1.mp4";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
 
-      const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBFormat;
+      await video.play();
 
-      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // flat on the marker
-      anchor.group.add(videoPlane);
+      const videoTexture = new THREE.VideoTexture(video);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: videoTexture });
 
-      // Load maintarget.png as upright floating overlay
-      const loader = new THREE.TextureLoader();
-      const pngTexture = loader.load("maintarget.png");
-      const pngMaterial = new THREE.MeshBasicMaterial({ 
-        map: pngTexture, 
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      const pngGeometry = new THREE.PlaneGeometry(1.8, 1.2);
-      const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-      pngPlane.position.set(0, 1.2, 0); // floating above
-      pngPlane.rotation.set(THREE.MathUtils.degToRad(-90), 0, 0); // upright
-      anchor.group.add(pngPlane);
+      const videoGeometry = new THREE.PlaneGeometry(1, 0.5625); // 16:9 aspect
+      const videoMesh = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoMesh.position.set(0, 0.6, 0); // offset above the card
+      videoMesh.rotation.x = -Math.PI / 4; // tilt 45 degrees
 
-      // Optional: Load GLB 3D model
-      const gltfLoader = new THREE.GLTFLoader();
-      gltfLoader.load("models/THE BUILD_3d_AR.glb", (gltf) => {
-        const model = gltf.scene;
-        model.scale.set(0.02, 0.02, 0.02);
-        model.rotation.set(Math.PI / 2, Math.PI, 0);
-        model.position.set(0, -0.1, 0);
-        anchor.group.add(model);
-      }, undefined, (error) => {
-        console.error("Error loading GLB model:", error);
+      // PNG overlay
+      const textureLoader = new THREE.TextureLoader();
+      const pngTexture = await textureLoader.loadAsync("./maintarget.png");
+      const pngMaterial = new THREE.MeshBasicMaterial({
+        map: pngTexture,
+        transparent: true
       });
 
-      // Start MindAR and play video (with fallback tap-to-start)
+      const pngGeometry = new THREE.PlaneGeometry(1, 0.5625); // same size
+      const pngMesh = new THREE.Mesh(pngGeometry, pngMaterial);
+      pngMesh.position.set(0, 0.6, 0.01); // slightly in front of video
+      pngMesh.rotation.x = -Math.PI / 4;
+
+      const anchor = mindarThree.addAnchor(0);
+      anchor.group.add(videoMesh);
+      anchor.group.add(pngMesh);
+
       await mindarThree.start();
-
-      try {
-        await video.play();
-      } catch (err) {
-        const startButton = document.getElementById("start-button");
-        startButton.classList.remove("hidden");
-        startButton.addEventListener("click", async () => {
-          await video.play();
-          startButton.classList.add("hidden");
-        });
-      }
-
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
     };
 
-    start().catch(err => {
-      console.error("MindAR failed to start:", err);
-    });
+    document.addEventListener("DOMContentLoaded", start);
   </script>
 </body>
 </html>
