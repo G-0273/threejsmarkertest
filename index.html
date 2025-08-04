@@ -23,13 +23,25 @@
       height: 100% !important;
       object-fit: cover;
     }
+    #video-debug {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 200px;
+      z-index: 100;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
+  <video id="video-debug" controls></video>
 
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
+      // Debug video element
+      const debugVideo = document.getElementById('video-debug');
+      
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./maintarget.mind",
@@ -38,9 +50,11 @@
       });
 
       const { renderer, scene, camera } = mindarThree;
+      renderer.alpha = true;
+      renderer.setClearColor(0x000000, 0); // Transparent background
       const anchor = mindarThree.addAnchor(0);
 
-      // 1. FIRST LOAD THE VIDEO (BACKGROUND LAYER)
+      // 1. VIDEO SETUP - SIMPLIFIED AND RELIABLE
       const video = document.createElement('video');
       video.src = 'circuit_3.webm';
       video.loop = true;
@@ -48,57 +62,73 @@
       video.playsInline = true;
       video.preload = 'auto';
       
+      // Debug setup
+      debugVideo.src = 'circuit_3.webm';
+      debugVideo.style.display = 'block';
+      
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBAFormat;
       
-      const videoGeometry = new THREE.PlaneGeometry(1.6, 1.6); // Slightly larger than PNG
+      const videoGeometry = new THREE.PlaneGeometry(1.6, 1.6);
       const videoMaterial = new THREE.MeshBasicMaterial({
         map: videoTexture,
         transparent: true,
         opacity: 1,
         side: THREE.DoubleSide,
-        depthWrite: false // Crucial for transparency
+        depthWrite: false,
+        alphaTest: 0
       });
       
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0); // Directly on card
-      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // Flat
+      videoPlane.position.set(0, 0, 0);
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0);
       anchor.group.add(videoPlane);
 
-      // 2. THEN LOAD THE PNG (FOREGROUND LAYER)
+      // 2. PNG SETUP - FIXED OUTLINE ISSUE
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
         
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
-          alphaTest: 0.1, // Adjust if edges are rough
-          depthWrite: false // Crucial for layering
+          alphaTest: 0.05, // Adjusted to remove outline
+          premultipliedAlpha: true,
+          depthWrite: false
         });
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.01); // Slightly above video
+        pngPlane.position.set(0, 0.1, 0.01);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
-      // 3. PLAYBACK CONTROL
-      mindarThree.onTargetFound = () => {
-        video.play().catch(e => console.log("Video error:", e));
+      // 3. PLAYBACK CONTROL WITH FALLBACK
+      mindarThree.onTargetFound = async () => {
+        try {
+          await video.play();
+          debugVideo.style.display = 'none';
+        } catch (err) {
+          console.error("Video error:", err);
+          debugVideo.style.display = 'block';
+          debugVideo.play();
+        }
       };
+      
       mindarThree.onTargetLost = () => {
         video.pause();
-        video.currentTime = 0;
+        debugVideo.pause();
       };
 
-      // 4. LIGHTING (ENHANCED)
-      scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-      dirLight.position.set(0, 2, 2);
+      // 4. OPTIMIZED LIGHTING
+      scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(0.5, 1, 1);
       scene.add(dirLight);
 
       await mindarThree.start();
