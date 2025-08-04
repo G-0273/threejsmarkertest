@@ -38,27 +38,33 @@
 
       // Load circuitdisplay.png with correct orientation
       const texture = new THREE.TextureLoader().load("circuitdisplay.png");
-      texture.flipY = false; // This fixes the vertical flip
+      texture.flipY = false; // Fixes vertical flip
+      texture.encoding = THREE.sRGBEncoding; // Better color rendering
       
       const geometry = new THREE.PlaneGeometry(1.5, 1);
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        alphaTest: 0.01 // Cleans up transparent edges
       });
 
       const plane = new THREE.Mesh(geometry, material);
       plane.position.set(0, 0.1, 0.3);
       
-      // Simplified rotation (removed the -45 degree tilt)
-      plane.rotation.set(-Math.PI / 2, 0, 0); // Just face up perpendicular to the card
+      // Tilted 45 degrees backward (corrected)
+      plane.rotation.set(
+        -Math.PI / 2 - THREE.MathUtils.degToRad(45), // Tilt back 45°
+        0, 
+        Math.PI // 180° flip to correct mirroring
+      );
       
       anchor.group.add(plane);
 
-      // Lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
+      // Improved lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(0, 5, 5);
       scene.add(dirLight);
 
       await mindarThree.start();
