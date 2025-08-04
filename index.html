@@ -36,9 +36,11 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load circuitdisplay.png
+      // Load circuitdisplay.png with correct orientation
       const texture = new THREE.TextureLoader().load("circuitdisplay.png");
-      const geometry = new THREE.PlaneGeometry(1.5, 1); // Adjust size as needed
+      texture.flipY = false; // This fixes the vertical flip
+      
+      const geometry = new THREE.PlaneGeometry(1.5, 1);
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
@@ -46,8 +48,11 @@
       });
 
       const plane = new THREE.Mesh(geometry, material);
-      plane.position.set(0, 0.1, 0.3); // Position adjustment
-      plane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt
+      plane.position.set(0, 0.1, 0.3);
+      
+      // Simplified rotation (removed the -45 degree tilt)
+      plane.rotation.set(-Math.PI / 2, 0, 0); // Just face up perpendicular to the card
+      
       anchor.group.add(plane);
 
       // Lighting
