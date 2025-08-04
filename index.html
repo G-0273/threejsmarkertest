@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection</title>
+  <title>Circuit AR Experience</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -29,34 +29,23 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
+    // HD Camera Patch
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
-      // Modify video constraints only, add ideal width/height
       if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          // If constraints.video is just 'true', replace with object constraints
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
+        constraints.video = {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: 'environment',
+          ...(typeof constraints.video === 'object' ? constraints.video : {})
+        };
       }
       return origGetUserMedia(constraints);
     };
 
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
+    // Prevent unwanted gestures
+    window.addEventListener('wheel', (e) => e.ctrlKey && e.preventDefault(), { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event => 
       window.addEventListener(event, e => e.preventDefault())
     );
 
@@ -71,32 +60,57 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let pngPlane = null;
-
+      // Load circuitdisplay.png
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
-
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31); // Slightly above video
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
+      // Load circuit_3.webm video
+      const video = document.createElement('video');
+      video.src = 'circuit_3.webm';
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.flipY = false;
+      videoTexture.minFilter = THREE.LinearFilter;
+      
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        transparent: true,
+        alphaTest: 0.01,
+        side: THREE.DoubleSide
+      });
+      
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.1, 0.3);
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      anchor.group.add(videoPlane);
+
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
       await mindarThree.start();
+      
+      // Auto-play video when target found
+      mindarThree.onTargetFound = () => video.play().catch(e => console.log("Video play error:", e));
+      mindarThree.onTargetLost = () => video.pause();
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
