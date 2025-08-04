@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card with Video</title>
+  <title>MindAR AR Card with Transparent WebM Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -39,7 +39,7 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size and adjust on window resize
+      // Set renderer size & camera aspect on resize
       const setSize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -50,33 +50,52 @@
       setSize();
       window.addEventListener('resize', setSize);
 
+      // Lights for the scene
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight.position.set(0, 1, 1);
+      scene.add(dirLight);
+
       const anchor = mindarThree.addAnchor(0);
 
-      // Load video
+      // Create and configure video element
       const video = document.createElement("video");
-      video.src = "circuit.webm";
+      video.src = "circuit.webm"; // your transparent webm video
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
 
+      // Create video texture with alpha support
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBFormat;
+      texture.format = THREE.RGBAFormat;  // important for alpha
 
+      // Create material that supports transparency
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+
+      // Create plane geometry and mesh for the video
       const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+
       videoPlane.position.set(0, 0, -0.01); // slightly behind the card
       anchor.group.add(videoPlane);
 
       await mindarThree.start();
 
-      // Play video immediately, no interaction required
-      video.play().catch(err => {
-        console.warn("Video play was prevented by browser autoplay policy:", err);
-      });
+      try {
+        await video.play();
+      } catch (err) {
+        console.warn("Autoplay failed, user interaction may be required.");
+      }
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
