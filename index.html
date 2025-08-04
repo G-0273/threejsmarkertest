@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card with Video and Model</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MindAR AR Card with Transparent Video</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -59,7 +59,6 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      // Ensure correct renderer size and adjust on window resize
       const setSize = () => {
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -70,7 +69,7 @@
       setSize();
       window.addEventListener('resize', setSize);
 
-      // Lighting for 3D models
+      // Lighting
       const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(hemiLight);
 
@@ -80,9 +79,9 @@
 
       const anchor = mindarThree.addAnchor(0);
 
-      // Load video
+      // Transparent video setup
       const video = document.createElement("video");
-      video.src = "circuit.webm";
+      video.src = "circuit.mov"; // Use your transparent .mov with ProRes4444 or WebM with alpha
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
@@ -91,38 +90,25 @@
       const texture = new THREE.VideoTexture(video);
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBFormat;
+      texture.format = THREE.RGBAFormat;
 
       const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        alphaTest: 0.01 // Helps clean edges
+      });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      videoPlane.position.set(0, 0, -0.01);
       anchor.group.add(videoPlane);
 
-      // Load card front image
-      // const cardTexture = new THREE.TextureLoader().load("card.JPG");
-      // const cardGeometry = new THREE.PlaneGeometry(0.9, 0.5);
-      // const cardMaterial = new THREE.MeshBasicMaterial({ map: cardTexture, transparent: true });
-      // const cardPlane = new THREE.Mesh(cardGeometry, cardMaterial);
-      // cardPlane.position.set(0, 0, 0.001); 
-      // anchor.group.add(cardPlane);
-
-      // Load GLB model (building)
+      // GLB model (building)
       const gltfLoader = new THREE.GLTFLoader();
       gltfLoader.load("models/THE BUILD_3d_AR.glb", (gltf) => {
         const model = gltf.scene;
-
-        // Scale the model to make it much smaller
-        model.scale.set(0.02, 0.02, 0.02);  // Make the model much smaller
-
-        // Adjust the model's rotation so it faces the front and is flat on the card
-        model.rotation.set(0, Math.PI, 0);  // Rotate 180 degrees around Y-axis for correct front view
-        model.rotation.x = Math.PI / 0;  // Rotate 90 degrees around the X-axis to make the building flat
-
-        // Adjust the model's position to bring it closer to the card
-        model.position.set(0, -0.1, 0);   // Lower the model on the Y-axis to bring it closer to the card
-
-        // Add the model to the anchor group
+        model.scale.set(0.02, 0.02, 0.02);
+        model.rotation.set(Math.PI / 2, Math.PI, 0); // Y: 180°, X: 90° up
+        model.position.set(0, -0.1, 0);
         anchor.group.add(model);
       }, undefined, (error) => {
         console.error("Error loading GLB model:", error);
@@ -152,4 +138,3 @@
   </script>
 </body>
 </html>
-
