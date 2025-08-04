@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MindAR AR Card with Transparent WebM Video</title>
+  <title>Circuit AR Experience</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -17,13 +17,9 @@
       position: relative;
     }
     canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
       width: 100% !important;
       height: 100% !important;
       object-fit: cover;
-      z-index: 0;
     }
   </style>
 </head>
@@ -31,81 +27,40 @@
   <div id="container"></div>
 
   <script>
-    const start = async () => {
+    document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./maintarget.mind"
+        imageTargetSrc: "./targets.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
-
-      // Set renderer size & camera aspect on resize
-      const setSize = () => {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-      };
-
-      setSize();
-      window.addEventListener('resize', setSize);
-
-      // Lights for the scene
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(hemiLight);
-
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(0, 1, 1);
-      scene.add(dirLight);
-
       const anchor = mindarThree.addAnchor(0);
 
-      // Create and configure video element
-      const video = document.createElement("video");
-      video.src = "circuit_3.webm"; // your transparent webm video
-      video.crossOrigin = "anonymous";
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-
-      // Create video texture with alpha support
-      const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBAFormat;  // important for alpha
-
-      // Create material that supports transparency
-      const videoMaterial = new THREE.MeshBasicMaterial({
+      // Load circuitdisplay.png
+      const texture = new THREE.TextureLoader().load("circuitdisplay.png");
+      const geometry = new THREE.PlaneGeometry(1.5, 1); // Adjust size as needed
+      const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        side: THREE.DoubleSide,
-        depthWrite: false,
+        side: THREE.DoubleSide
       });
 
-      // Create plane geometry and mesh for the video
-      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      const plane = new THREE.Mesh(geometry, material);
+      plane.position.set(0, 0.1, 0.3); // Position adjustment
+      plane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt
+      anchor.group.add(plane);
 
-      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
-      anchor.group.add(videoPlane);
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
       await mindarThree.start();
-
-      try {
-        await video.play();
-      } catch (err) {
-        console.warn("Autoplay failed, user interaction may be required.");
-      }
-
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
-    };
-
-    start().catch(err => {
-      console.error("MindAR failed to start:", err);
     });
   </script>
 </body>
 </html>
-
