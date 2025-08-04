@@ -2,82 +2,89 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Video + PNG Test</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MindAR AR Card with Video</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     body {
       margin: 0;
       overflow: hidden;
     }
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
     canvas {
       position: absolute;
       top: 0;
       left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+      z-index: 0;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 </head>
 <body>
+  <div id="container"></div>
+
   <script>
-    document.addEventListener("DOMContentLoaded", async () => {
+    const start = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.body,
-        imageTargetSrc: "./targets.mind",
-        maxTrack: 1,
-        filterMinCF: 0.001,
-        filterBeta: 0.01
+        container: document.querySelector("#container"),
+        imageTargetSrc: "./targets.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
 
+      // Ensure correct renderer size and adjust on window resize
+      const setSize = () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      };
+
+      setSize();
+      window.addEventListener('resize', setSize);
+
       const anchor = mindarThree.addAnchor(0);
 
-      // Transparent PNG
-      const loader = new THREE.TextureLoader();
-      const pngMaterial = new THREE.MeshBasicMaterial({
-        map: loader.load("maintarget.png"),
-        transparent: true,
-        depthWrite: false
-      });
-      const pngGeometry = new THREE.PlaneGeometry(1, 0.7);
-      const pngMesh = new THREE.Mesh(pngGeometry, pngMaterial);
-      pngMesh.position.set(0, 0.35, 0);
-      pngMesh.rotation.x = -Math.PI / 2;
-      anchor.group.add(pngMesh);
-
-      // Transparent looping video (webm)
+      // Load video
       const video = document.createElement("video");
-      video.src = "circuit_1.webm";
+      video.src = "circuit.webm";
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
 
-      const videoTexture = new THREE.VideoTexture(video);
-      const videoMaterial = new THREE.MeshBasicMaterial({
-        map: videoTexture,
-        transparent: true,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      });
-      const videoGeometry = new THREE.PlaneGeometry(1, 0.7);
-      const videoMesh = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoMesh.position.set(0, 0.7, 0); // slightly above the PNG
-      videoMesh.rotation.x = -Math.PI / 2;
-      anchor.group.add(videoMesh);
+      const texture = new THREE.VideoTexture(video);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      texture.format = THREE.RGBFormat;
 
-      anchor.onTargetFound = () => {
-        video.play();
-      };
-      anchor.onTargetLost = () => {
-        video.pause();
-      };
+      const videoGeometry = new THREE.PlaneGeometry(6.0, 4.0);
+      const videoMaterial = new THREE.MeshBasicMaterial({ map: texture });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, -0.01); // slightly behind the card
+      anchor.group.add(videoPlane);
 
       await mindarThree.start();
+
+      // Play video immediately, no interaction required
+      video.play().catch(err => {
+        console.warn("Video play was prevented by browser autoplay policy:", err);
+      });
+
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
       });
+    };
+
+    start().catch(err => {
+      console.error("MindAR failed to start:", err);
     });
   </script>
 </body>
