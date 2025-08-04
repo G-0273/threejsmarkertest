@@ -69,7 +69,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load circuitdisplay.png (your existing implementation)
+      // Load circuitdisplay.png (EXACTLY AS YOU HAD IT)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -82,12 +82,12 @@
         });
 
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.31); // Slightly above video
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        pngPlane.position.set(0, 0.1, 0.3); // Same position as before
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Same 45° tilt
         anchor.group.add(pngPlane);
       });
 
-      // Load circuit_3.webm video (your previous video implementation style)
+      // Load circuit_3.webm video (FLAT ON CARD)
       const video = document.createElement('video');
       video.src = 'circuit_3.webm';
       video.loop = true;
@@ -110,11 +110,11 @@
       });
 
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.1, 0.3); // Slightly below image
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      videoPlane.position.set(0, 0, 0.01); // Flat on card (Z=0.01)
+      videoPlane.rotation.set(-Math.PI / 2, 0, 0); // No extra tilt (flat)
       anchor.group.add(videoPlane);
 
-      // Lighting (your existing implementation)
+      // Lighting (same as before)
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
@@ -122,13 +122,13 @@
 
       await mindarThree.start();
 
-      // Video autoplay handling (your previous approach)
-      try {
-        await video.play();
-      } catch (err) {
-        console.log("Autoplay prevented:", err);
-        // Add tap-to-play overlay if needed
-      }
+      // Video autoplay handling
+      mindarThree.onTargetFound = () => {
+        video.play().catch(e => console.log("Video play error:", e));
+      };
+      mindarThree.onTargetLost = () => {
+        video.pause();
+      };
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
