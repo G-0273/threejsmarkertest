@@ -34,7 +34,7 @@
     const start = async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind"
+        imageTargetSrc: "./maintarget.mind"
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -62,7 +62,7 @@
 
       // Create and configure video element
       const video = document.createElement("video");
-      video.src = "circuit.webm"; // your transparent webm video
+      video.src = "circuit_3.webm"; // your transparent webm video
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.muted = true;
@@ -108,3 +108,4 @@
   </script>
 </body>
 </html>
+
