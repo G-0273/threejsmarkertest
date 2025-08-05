@@ -111,7 +111,7 @@
 
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
       videoPlane.position.set(0, 0.1, 0.3); // Slightly below image
-      videoPlane.rotation.set(Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      videoPlane.rotation.set(0, 0, 0);
       anchor.group.add(videoPlane);
 
       // Lighting (your existing implementation)
@@ -137,6 +137,7 @@
   </script>
 </body>
 </html>
+
 
 
 
