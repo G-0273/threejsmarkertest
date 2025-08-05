@@ -26,7 +26,6 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia for preferred camera resolution and environment facing
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
       if (constraints && constraints.video) {
@@ -39,7 +38,9 @@
       return origGetUserMedia(constraints);
     };
 
-    window.addEventListener("DOMContentLoaded", async () => {
+    document.addEventListener("DOMContentLoaded", async () => {
+      const THREE = window.MINDAR.THREE;
+
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
         imageTargetSrc: "./maintarget.mind",
@@ -48,7 +49,6 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load and show circuitdisplay.png above marker
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -64,27 +64,25 @@
         anchor.group.add(plane);
       });
 
-      // Prepare dual videos for color and alpha channel
       const videoColor = document.createElement("video");
       videoColor.src = "./circuit_3_color.mp4";
       videoColor.loop = true;
       videoColor.muted = true;
       videoColor.playsInline = true;
-      await videoColor.play().catch(() => { /* Ignore autoplay errors */ });
+      await videoColor.play().catch(() => {});
 
       const videoAlpha = document.createElement("video");
       videoAlpha.src = "./circuit_3_alpha.mp4";
       videoAlpha.loop = true;
       videoAlpha.muted = true;
       videoAlpha.playsInline = true;
-      await videoAlpha.play().catch(() => { /* Ignore autoplay errors */ });
+      await videoAlpha.play().catch(() => {});
 
       const textureColor = new THREE.VideoTexture(videoColor);
       const textureAlpha = new THREE.VideoTexture(videoAlpha);
       textureColor.minFilter = THREE.LinearFilter;
       textureAlpha.minFilter = THREE.LinearFilter;
 
-      // Shader material combining color and alpha video textures
       const material = new THREE.ShaderMaterial({
         uniforms: {
           colorTexture: { value: textureColor },
@@ -129,5 +127,3 @@
   </script>
 </body>
 </html>
-
-
