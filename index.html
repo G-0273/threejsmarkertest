@@ -1,56 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>AR Projection</title>
-<script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-<style>
-  html, body {
-    margin: 0; padding: 0; overflow: hidden; touch-action: none;
-  }
-  #container {
-    width: 100vw; height: 100vh; position: relative;
-  }
-  canvas {
-    width: 100% !important; height: 100% !important; object-fit: cover;
-  }
-</style>
-</head>
-<body>
-  <div id="container"></div>
-
-<script>
-  // Patch getUserMedia for HD camera
-  const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-  navigator.mediaDevices.getUserMedia = (constraints) => {
-    if (constraints && constraints.video) {
-      if (typeof constraints.video === 'object') {
-        constraints.video = {
-          ...constraints.video,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'environment',
-        };
-      } else {
-        constraints.video = {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'environment',
-        };
-      }
-    }
-    return origGetUserMedia(constraints);
-  };
-
-  window.addEventListener('wheel', (e) => { if(e.ctrlKey) e.preventDefault(); }, { passive:false });
-  ['gesturestart','gesturechange','gestureend'].forEach(ev => window.addEventListener(ev, e => e.preventDefault()));
-
-  document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
+  const startAR = async () => {
     const mindarThree = new window.MINDAR.IMAGE.MindARThree({
       container: document.querySelector("#container"),
-      imageTargetSrc: "./maintarget.mind",
+      imageTargetSrc: "./targets (1).mind",
       filterMinCF: 0.05,
       filterBeta: 0.15,
     });
@@ -58,96 +10,41 @@
     const { renderer, scene, camera } = mindarThree;
     const anchor = mindarThree.addAnchor(0);
 
-    // PNG plane
+    let pngPlane = null;
+
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load("circuitdisplay.png", (texture) => {
       texture.flipY = false;
+
       const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
       const pngMaterial = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
         side: THREE.DoubleSide,
       });
-      const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+
+      pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
       pngPlane.position.set(0, 0.1, 0.3);
-      pngPlane.rotation.set(-Math.PI/2 - THREE.MathUtils.degToRad(45), 0, 0);
+      pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+
       anchor.group.add(pngPlane);
     });
 
-    // Dual videos
-    const videoColor = document.createElement('video');
-    videoColor.src = 'circuit_3_color.mp4';
-    videoColor.loop = true;
-    videoColor.muted = true;
-    videoColor.playsInline = true;
-    videoColor.crossOrigin = "anonymous";
-
-    const videoAlpha = document.createElement('video');
-    videoAlpha.src = 'circuit_3_alpha.mp4';
-    videoAlpha.loop = true;
-    videoAlpha.muted = true;
-    videoAlpha.playsInline = true;
-    videoAlpha.crossOrigin = "anonymous";
-
-    // Play videos first, await both
-    await Promise.all([
-      videoColor.play(),
-      videoAlpha.play(),
-    ]);
-
-    // Then start MindAR
-    await mindarThree.start();
-
-    const textureColor = new THREE.VideoTexture(videoColor);
-    textureColor.minFilter = THREE.LinearFilter;
-    textureColor.magFilter = THREE.LinearFilter;
-    textureColor.format = THREE.RGBFormat;
-
-    const textureAlpha = new THREE.VideoTexture(videoAlpha);
-    textureAlpha.minFilter = THREE.LinearFilter;
-    textureAlpha.magFilter = THREE.LinearFilter;
-    textureAlpha.format = THREE.LuminanceFormat;
-
-    const material = new THREE.ShaderMaterial({
-      uniforms: {
-        colorTexture: { value: textureColor },
-        alphaTexture: { value: textureAlpha },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D colorTexture;
-        uniform sampler2D alphaTexture;
-        varying vec2 vUv;
-        void main() {
-          vec4 color = texture2D(colorTexture, vUv);
-          float alpha = texture2D(alphaTexture, vUv).r;
-          gl_FragColor = vec4(color.rgb, alpha);
-        }
-      `,
-      transparent: true,
-    });
-
-    const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-    const videoPlane = new THREE.Mesh(videoGeometry, material);
-    videoPlane.position.set(0, 0, 0);
-    anchor.group.add(videoPlane);
-
-    // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(1, 2, 3);
     scene.add(dirLight);
 
+    await mindarThree.start();
+
     renderer.setAnimationLoop(() => {
       renderer.render(scene, camera);
     });
-  });
-</script>
-</body>
-</html>
+  };
+
+  const touchLayer = document.getElementById('touch-to-start');
+  touchLayer.addEventListener('touchstart', () => {
+    touchLayer.remove(); // Remove transparent layer
+    startAR(); // Now start camera and AR
+  }, { once: true });
+});
