@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>AR Projection</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
@@ -69,26 +69,23 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load your PNG plane as before
+      // Your PNG plane as before
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
+        pngPlane.position.set(0, 0.1, 0.3);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-
         anchor.group.add(pngPlane);
       });
 
-      // Create color and alpha video elements
+      // Dual videos for color and alpha
       const videoColor = document.createElement('video');
       videoColor.src = 'circuit_3_color.mp4';
       videoColor.loop = true;
@@ -103,8 +100,11 @@
       videoAlpha.playsInline = true;
       videoAlpha.crossOrigin = "anonymous";
 
-      // Wait for both videos to be ready and play
-      await Promise.all([videoColor.play(), videoAlpha.play()]);
+      // Wait for both videos to be ready and play them
+      await Promise.all([
+        videoColor.play(),
+        videoAlpha.play(),
+      ]);
 
       // Create video textures
       const textureColor = new THREE.VideoTexture(videoColor);
@@ -117,7 +117,7 @@
       textureAlpha.magFilter = THREE.LinearFilter;
       textureAlpha.format = THREE.LuminanceFormat;
 
-      // Shader material combining color + alpha mask
+      // Shader material for video with alpha mask
       const material = new THREE.ShaderMaterial({
         uniforms: {
           colorTexture: { value: textureColor },
@@ -127,7 +127,7 @@
           varying vec2 vUv;
           void main() {
             vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }
         `,
         fragmentShader: `
@@ -143,12 +143,12 @@
         transparent: true,
       });
 
-      const geometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoPlane = new THREE.Mesh(geometry, material);
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+      const videoPlane = new THREE.Mesh(videoGeometry, material);
       videoPlane.position.set(0, 0, 0);
       anchor.group.add(videoPlane);
 
-      // Lights as before
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
