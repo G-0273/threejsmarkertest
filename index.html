@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +33,6 @@
     // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
-      // Modify video constraints only, add ideal width/height
       if (constraints && constraints.video) {
         if (typeof constraints.video === 'object') {
           constraints.video = {
@@ -42,7 +42,6 @@
             facingMode: 'environment',
           };
         } else {
-          // If constraints.video is just 'true', replace with object constraints
           constraints.video = {
             width: { ideal: 1280 },
             height: { ideal: 720 },
@@ -71,8 +70,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      let pngPlane = null;
-
+      // Load circuitdisplay.png (your existing implementation)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -84,19 +82,54 @@
           side: THREE.DoubleSide,
         });
 
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Tilt backward 45 degrees
-
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31); // Slightly above video
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
+      // Load circuit_3.webm video (your previous video implementation style)
+      const video = document.createElement('video');
+      video.src = 'circuit_3.webm';
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
+
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        transparent: true,
+        alphaTest: 0.05,
+        side: THREE.DoubleSide
+      });
+
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0); // Slightly below image
+      videoPlane.rotation.set(0, 0, 0);
+      anchor.group.add(videoPlane);
+
+      // Lighting (your existing implementation)
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
       await mindarThree.start();
+
+      // Video autoplay handling (your previous approach)
+      try {
+        await video.play();
+      } catch (err) {
+        console.log("Autoplay prevented:", err);
+        // Add tap-to-play overlay if needed
+      }
 
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
@@ -105,4 +138,5 @@
   </script>
 </body>
 </html>
+
 
