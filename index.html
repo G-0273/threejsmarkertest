@@ -23,6 +23,19 @@
       height: 100% !important;
       object-fit: cover;
     }
+    #tap-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5em;
+      z-index: 10;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -58,9 +71,10 @@
       window.addEventListener(event, e => e.preventDefault())
     );
 
-    // Detect Safari browser
-    function isSafari() {
-      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    // Detect iOS devices (including Chrome on iOS)
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -92,7 +106,7 @@
         anchor.group.add(pngPlane);
       });
 
-      // Video setup with Safari detection
+      // Video setup with iOS detection
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
@@ -100,8 +114,8 @@
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
       
-      // Use MP4 for Safari, WebM for other browsers
-      video.src = isSafari() ? 'circuit_1.mp4' : 'circuit_3.webm';
+      // Use MP4 for iOS devices, WebM for others
+      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
@@ -127,33 +141,35 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      await mindarThree.start();
-
-      // Try autoplay; fallback to tap overlay if blocked
-      try {
-        await video.play();
-      } catch (err) {
-        console.warn("Autoplay prevented:", err);
-        const overlay = document.createElement("div");
-        overlay.style.cssText = `
-          position: absolute;
-          top: 0; left: 0;
-          width: 100%; height: 100%;
-          background: rgba(0,0,0,0.5);
-          color: white;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          font-size: 1.5em;
-          z-index: 10;
-          cursor: pointer;
-        `;
-        overlay.innerText = "Tap to Start Video";
-        overlay.addEventListener("click", async () => {
-          overlay.remove();
+      // Create overlay upfront (helps with iOS)
+      const overlay = document.createElement("div");
+      overlay.id = "tap-overlay";
+      overlay.innerText = "Tap to Start Experience";
+      overlay.addEventListener("click", async () => {
+        try {
+          await mindarThree.start();
           await video.play();
-        });
-        document.querySelector("#container").appendChild(overlay);
+          overlay.style.display = 'none';
+        } catch (err) {
+          console.error("Failed to start:", err);
+          overlay.innerText = "Error starting experience. Please refresh.";
+        }
+      });
+      document.querySelector("#container").appendChild(overlay);
+
+      // Try autoplay on non-iOS devices
+      if (!isIOS()) {
+        try {
+          await mindarThree.start();
+          await video.play();
+          overlay.style.display = 'none';
+        } catch (err) {
+          console.warn("Autoplay prevented:", err);
+          overlay.style.display = 'flex';
+        }
+      } else {
+        // On iOS, always show the tap overlay due to strict autoplay policies
+        overlay.style.display = 'flex';
       }
 
       renderer.setAnimationLoop(() => {
