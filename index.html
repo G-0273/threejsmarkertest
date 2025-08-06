@@ -51,6 +51,12 @@
   <div id="container"></div>
 
   <script>
+    // Enhanced browser detection
+    function shouldUseMP4() {
+      const ua = navigator.userAgent;
+      return /iPad|iPhone|iPod|Safari/.test(ua) && !/Chrome|CriOS|Firefox|FxiOS|Edg/.test(ua);
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
       
@@ -90,18 +96,22 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create video element with Safari-specific attributes
+      // Create video element with correct format for each browser
       const video = document.createElement('video');
-      video.src = "circuit_1.mp4"; // Your Safari video file
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
       
-      // Add video to DOM (hidden) - CRUCIAL FOR SAFARI
-      video.style.display = 'none';
-      document.body.appendChild(video);
+      // Set source based on browser detection
+      if (shouldUseMP4()) {
+        video.src = "circuit_1.mp4"; // For Safari
+        console.log("Using MP4 for Safari");
+      } else {
+        video.src = "circuit_3.webm"; // For other browsers
+        console.log("Using WebM for non-Safari");
+      }
 
       // Create video plane
       const videoTexture = new THREE.VideoTexture(video);
@@ -113,7 +123,7 @@
         side: THREE.DoubleSide,
       });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0); // Flat on marker
+      videoPlane.position.set(0, 0, 0);
       anchor.group.add(videoPlane);
 
       // Lighting
@@ -128,24 +138,25 @@
           document.querySelector("#loading").textContent = "Starting AR...";
           await mindarThree.start();
           
-          // SAFARI-SPECIFIC VIDEO SEQUENCE
-          document.querySelector("#loading").textContent = "Preparing video...";
-          video.load();
-          
-          // Wait for video to be ready
-          await new Promise((resolve) => {
-            const checkReady = () => {
-              if (video.readyState > 2) {
-                resolve();
-              } else {
-                setTimeout(checkReady, 100);
-              }
-            };
-            checkReady();
-          });
-          
-          // Short delay - crucial for Safari
-          await new Promise(resolve => setTimeout(resolve, 300));
+          // Safari-specific handling
+          if (shouldUseMP4()) {
+            document.querySelector("#loading").textContent = "Preparing video...";
+            video.load();
+            
+            // Wait for video to be ready
+            await new Promise((resolve) => {
+              const checkReady = () => {
+                if (video.readyState > 2) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+                  resolve();
+                } else {
+                  setTimeout(checkReady, 100);
+                }
+              };
+              checkReady();
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
           
           document.querySelector("#loading").textContent = "Starting video...";
           await video.play();
@@ -163,6 +174,20 @@
 
       // Set up event listeners
       overlay.addEventListener("click", startExperience);
+
+      // Try autoplay for non-Safari browsers
+      if (!shouldUseMP4()) {
+        try {
+          await mindarThree.start();
+          await video.play();
+          overlay.style.display = 'none';
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.log("Autoplay blocked - waiting for interaction");
+        }
+      }
     });
   </script>
 </body>
