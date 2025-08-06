@@ -1,182 +1,88 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      touch-action: none;
-    }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-    }
-    #tap-overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5em;
-      z-index: 10;
-      cursor: pointer;
-    }
-  </style>
-</head>
-<body>
-  <div id="container"></div>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const container = document.querySelector("#container");
+  const overlay = document.createElement("div");
+  overlay.id = "tap-overlay";
+  overlay.innerHTML = `
+    <div>Tap to Start AR Experience</div>
+    <div id="status">Initializing...</div>
+  `;
+  container.appendChild(overlay);
 
-  <script>
-    // Patch getUserMedia to force HD camera constraints
-    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
-      }
-      return origGetUserMedia(constraints);
-    };
+  // 1. First check for target file
+  const statusEl = document.getElementById("status");
+  try {
+    const targetExists = await fetch("./targets (1).mind").then(r => r.ok);
+    if (!targetExists) throw new Error("Target file missing");
+  } catch (e) {
+    statusEl.textContent = "Error: Missing AR target file";
+    return;
+  }
 
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
+  // 2. Initialize MindAR
+  const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    container: container,
+    imageTargetSrc: "./targets (1).mind",
+    filterMinCF: 0.05,
+    filterBeta: 0.15,
+  });
 
-    // Detect iOS devices
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
+  // 3. Set up scene (your existing working code)
+  const { renderer, scene, camera } = mindarThree;
+  const anchor = mindarThree.addAnchor(0);
+  
+  // [Keep your existing pngPlane code...]
 
-    document.addEventListener("DOMContentLoaded", async () => {
-      const container = document.querySelector("#container");
+  // 4. Initialize video with better error handling
+  statusEl.textContent = "Loading video...";
+  const videoInit = await initVideo();
+  if (!videoInit) {
+    statusEl.textContent = "Error loading video";
+    return;
+  }
+
+  const { video, material } = videoInit;
+  const videoPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, 1.5),
+    material
+  );
+  anchor.group.add(videoPlane);
+
+  // 5. Start on user interaction
+  overlay.addEventListener("click", async () => {
+    try {
+      statusEl.textContent = "Starting camera...";
+      await mindarThree.start();
       
-      // Create overlay for iOS
-      const overlay = document.createElement("div");
-      overlay.id = "tap-overlay";
-      overlay.innerText = "Tap to Start Experience";
-      container.appendChild(overlay);
-
-      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: container,
-        imageTargetSrc: "./targets (1).mind",
-        filterMinCF: 0.05,
-        filterBeta: 0.15,
+      statusEl.textContent = "Starting video...";
+      await video.play();
+      
+      overlay.style.display = 'none';
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
       });
-
-      const { renderer, scene, camera } = mindarThree;
-      const anchor = mindarThree.addAnchor(0);
-
-      // Load static image (your working code)
-      let pngPlane = null;
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        });
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(pngPlane);
-      });
-
-      // Create video element with iOS-specific attributes
-      const video = document.createElement('video');
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.setAttribute('webkit-playsinline', '');
-      video.setAttribute('playsinline', '');
-      video.src = 'circuit_1.mp4'; // Use MP4 for iOS compatibility
-
-      // Create video texture and plane
-      const videoTexture = new THREE.VideoTexture(video);
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
-      const videoMaterial = new THREE.MeshBasicMaterial({
-        map: videoTexture,
-        transparent: true,
-        alphaTest: 0.05,
-        side: THREE.DoubleSide,
-      });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      anchor.group.add(videoPlane);
-
-      // Lighting (your working code)
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
-      scene.add(dirLight);
-
-      // Start everything when user taps (for iOS)
-      overlay.addEventListener("click", async () => {
-        try {
-          await mindarThree.start();
-          
-          // iOS-specific video playback sequence
-          if (isIOS()) {
-            video.load();
-            await new Promise(resolve => setTimeout(resolve, 300));
+    } catch (err) {
+      console.error("Start error:", err);
+      statusEl.textContent = `Error: ${err.message}`;
+      
+      // Special laptop fix - sometimes needs double start
+      if (/mac|win/.test(navigator.platform.toLowerCase())) {
+        setTimeout(async () => {
+          try {
+            await mindarThree.start();
+            await video.play();
+            overlay.style.display = 'none';
+          } catch (e) {
+            statusEl.textContent = "Still stuck? Refresh page";
           }
-          
-          await video.play();
-          overlay.style.display = 'none';
-          
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-        } catch (err) {
-          console.error("Error:", err);
-          overlay.innerText = "Error starting. Please tap again.";
-        }
-      });
-
-      // For non-iOS devices, try autoplay
-      if (!isIOS()) {
-        try {
-          await mindarThree.start();
-          await video.play();
-          overlay.style.display = 'none';
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-        } catch (err) {
-          console.log("Autoplay blocked, waiting for user interaction");
-        }
+        }, 500);
       }
-    });
-  </script>
-</body>
-</html>
+    }
+  });
+
+  // Try autostart on non-mobile
+  if (!/mobi/i.test(navigator.userAgent)) {
+    overlay.click(); // Simulate click
+  }
+});
+</script>
