@@ -51,17 +51,15 @@
   <div id="container"></div>
 
   <script>
-    // Enhanced browser detection
-    function shouldUseMP4() {
-      const ua = navigator.userAgent;
-      return /iPad|iPhone|iPod|Safari/.test(ua) && !/Chrome|CriOS|Firefox|FxiOS|Edg/.test(ua);
+    // Reliable iOS Safari detection
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
-      
-      // Create overlay
-      const overlay = document.createElement("div");
+      const overlay = document.querySelector("#tap-overlay") || document.createElement("div");
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
         <div>Tap to Start AR Experience</div>
@@ -75,6 +73,9 @@
         imageTargetSrc: "./maintarget.mind",
         filterMinCF: 0.05,
         filterBeta: 0.15,
+        uiLoading: "no",
+        uiScanning: "no",
+        uiError: "no"
       });
 
       const { renderer, scene, camera } = mindarThree;
@@ -96,22 +97,21 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create video element with correct format for each browser
+      // Create video element with iOS-specific attributes
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
+      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
       
-      // Set source based on browser detection
-      if (shouldUseMP4()) {
-        video.src = "circuit_1.mp4"; // For Safari
-        console.log("Using MP4 for Safari");
-      } else {
-        video.src = "circuit_3.webm"; // For other browsers
-        console.log("Using WebM for non-Safari");
-      }
+      // CRUCIAL: Add video to DOM (hidden) for iOS
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
+      document.body.appendChild(video);
 
       // Create video plane
       const videoTexture = new THREE.VideoTexture(video);
@@ -132,31 +132,29 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Start experience handler
-      const startExperience = async () => {
+      // iOS-specific initialization
+      const initForIOS = async () => {
         try {
-          document.querySelector("#loading").textContent = "Starting AR...";
+          document.querySelector("#loading").textContent = "Loading AR...";
           await mindarThree.start();
           
-          // Safari-specific handling
-          if (shouldUseMP4()) {
-            document.querySelector("#loading").textContent = "Preparing video...";
-            video.load();
-            
-            // Wait for video to be ready
-            await new Promise((resolve) => {
-              const checkReady = () => {
-                if (video.readyState > 2) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
-                  resolve();
-                } else {
-                  setTimeout(checkReady, 100);
-                }
-              };
-              checkReady();
-            });
-            
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
+          document.querySelector("#loading").textContent = "Preparing video...";
+          video.load();
+          
+          // Wait for video to be ready
+          await new Promise((resolve) => {
+            const checkReady = () => {
+              if (video.readyState > 2) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+                resolve();
+              } else {
+                setTimeout(checkReady, 100);
+              }
+            };
+            checkReady();
+          });
+          
+          // Required delay for iOS
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           document.querySelector("#loading").textContent = "Starting video...";
           await video.play();
@@ -167,16 +165,32 @@
           });
           
         } catch (err) {
-          console.error("Start error:", err);
+          console.error("iOS Start error:", err);
           document.querySelector("#loading").textContent = "Error starting. Please tap again.";
+          overlay.onclick = initForIOS; // Allow retry
         }
       };
 
-      // Set up event listeners
-      overlay.addEventListener("click", startExperience);
+      // Standard initialization for other browsers
+      const initForOthers = async () => {
+        try {
+          await mindarThree.start();
+          await video.play();
+          overlay.style.display = 'none';
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.log("Autoplay blocked - waiting for interaction");
+          overlay.onclick = initForOthers; // Fallback to click handler
+        }
+      };
 
-      // Try autoplay for non-Safari browsers
-      if (!shouldUseMP4()) {
+      // Set up initial click handler
+      overlay.onclick = isIOS() ? initForIOS : initForOthers;
+
+      // Try autoplay for non-iOS
+      if (!isIOS()) {
         try {
           await mindarThree.start();
           await video.play();
