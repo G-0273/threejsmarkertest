@@ -45,6 +45,17 @@
       font-size: 1em;
       color: #ccc;
     }
+    #retry-button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1em;
+      cursor: pointer;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -59,13 +70,17 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
+      
+      // Create overlay with retry button
       const overlay = document.createElement("div");
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
         <div>Tap to Start AR Experience</div>
         <div id="loading">Initializing...</div>
+        <button id="retry-button">Retry</button>
       `;
       container.appendChild(overlay);
+      const retryButton = document.getElementById("retry-button");
 
       // Initialize MindAR
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -81,7 +96,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load static image
+      // Load static image (positioned above the card)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -97,18 +112,20 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create video element
+      // Create video element with iOS-specific attributes
       const video = document.createElement('video');
-      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.preload = "auto";
+      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
       
-      // Add to DOM (required for iOS)
-      video.style.display = 'none';
+      // CRUCIAL: Add video to DOM (hidden) for iOS
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
       // Create video plane
@@ -130,33 +147,57 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // iOS-specific initialization
+      // iOS-specific initialization with timeout fallback
       const initForIOS = async () => {
         try {
-          // Step 1: Start AR first
+          retryButton.style.display = 'none';
           document.querySelector("#loading").textContent = "Starting AR...";
+          
+          // Start AR first
           await mindarThree.start();
           
-          // Step 2: Prepare video (must happen after AR starts on iOS)
           document.querySelector("#loading").textContent = "Loading video...";
           video.load();
           
-          // Wait for video to be ready
+          // Wait for video with timeout fallback
+          let videoReady = false;
+          const videoReadyCheck = () => {
+            if (video.readyState > 2) {
+              videoReady = true;
+              return true;
+            }
+            return false;
+          };
+          
+          // Wait up to 3 seconds for video to load
           await new Promise((resolve) => {
-            const checkReady = () => {
-              if (video.readyState > 2) { // HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4)
+            const startTime = Date.now();
+            const checkInterval = setInterval(() => {
+              if (videoReadyCheck() || (Date.now() - startTime) > 3000) {
+                clearInterval(checkInterval);
                 resolve();
-              } else {
-                setTimeout(checkReady, 100);
               }
-            };
-            checkReady();
+            }, 100);
           });
           
-          // Step 3: Play video with delay
+          if (!videoReady) {
+            throw new Error("Video took too long to load");
+          }
+          
           document.querySelector("#loading").textContent = "Starting video...";
-          await new Promise(resolve => setTimeout(resolve, 500)); // Crucial delay
-          await video.play();
+          
+          // Try playing video with multiple attempts
+          let attempts = 0;
+          while (attempts < 3) {
+            try {
+              await video.play();
+              break;
+            } catch (err) {
+              attempts++;
+              if (attempts >= 3) throw err;
+              await new Promise(resolve => setTimeout(resolve, 300 * attempts));
+            }
+          }
           
           // Success - hide overlay
           overlay.style.display = 'none';
@@ -166,30 +207,16 @@
           
         } catch (err) {
           console.error("iOS Error:", err);
-          document.querySelector("#loading").textContent = "Failed to start. Tap to retry.";
-          overlay.onclick = initForIOS; // Allow retry
+          document.querySelector("#loading").textContent = "Failed to start video";
+          retryButton.style.display = 'block';
         }
       };
 
-      // Standard initialization for other browsers
-      const initForOthers = async () => {
-        try {
-          await mindarThree.start();
-          await video.play();
-          overlay.style.display = 'none';
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-        } catch (err) {
-          console.log("Autoplay blocked - waiting for interaction");
-          overlay.onclick = initForOthers;
-        }
-      };
+      // Set up event listeners
+      overlay.addEventListener("click", initForIOS);
+      retryButton.addEventListener("click", initForIOS);
 
-      // Set initial click handler based on platform
-      overlay.onclick = isIOS() ? initForIOS : initForOthers;
-
-      // Try autoplay for non-iOS
+      // For non-iOS devices
       if (!isIOS()) {
         try {
           await mindarThree.start();
