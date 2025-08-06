@@ -30,11 +30,20 @@
       background: rgba(0,0,0,0.5);
       color: white;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       font-size: 1.5em;
       z-index: 10;
       cursor: pointer;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #loading {
+      margin-top: 20px;
+      font-size: 1em;
+      color: #ccc;
     }
   </style>
 </head>
@@ -42,35 +51,6 @@
   <div id="container"></div>
 
   <script>
-    // Patch getUserMedia to force HD camera constraints
-    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
-      }
-      return origGetUserMedia(constraints);
-    };
-
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
-
     // Detect iOS devices
     function isIOS() {
       return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
@@ -80,15 +60,19 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
       
-      // Create overlay for iOS
+      // Create overlay
       const overlay = document.createElement("div");
       overlay.id = "tap-overlay";
-      overlay.innerText = "Tap to Start Experience";
+      overlay.innerHTML = `
+        <div>Tap to Start AR Experience</div>
+        <div id="loading">Loading...</div>
+      `;
       container.appendChild(overlay);
 
+      // Initialize MindAR
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
-        imageTargetSrc: "./targets (1).mind",
+        imageTargetSrc: "./maintarget.mind",
         filterMinCF: 0.05,
         filterBeta: 0.15,
       });
@@ -96,8 +80,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load static image (your working code)
-      let pngPlane = null;
+      // Load static image
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -107,8 +90,8 @@
           transparent: true,
           side: THREE.DoubleSide,
         });
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3);
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
@@ -116,13 +99,13 @@
       // Create video element with iOS-specific attributes
       const video = document.createElement('video');
       video.loop = true;
-      video.muted = true;
+      video.muted = true; // Required for iOS autoplay
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.src = 'circuit_1.mp4'; // Use MP4 for iOS compatibility
-
-      // Create video texture and plane
+      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
+      
+      // Create video texture and mesh
       const videoTexture = new THREE.VideoTexture(video);
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
       const videoMaterial = new THREE.MeshBasicMaterial({
@@ -134,36 +117,44 @@
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
       anchor.group.add(videoPlane);
 
-      // Lighting (your working code)
+      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Start everything when user taps (for iOS)
+      // Start everything when user taps
       overlay.addEventListener("click", async () => {
         try {
+          document.querySelector("#loading").textContent = "Starting...";
+          
+          // Start MindAR
           await mindarThree.start();
           
-          // iOS-specific video playback sequence
+          // iOS requires this sequence for reliable video playback
           if (isIOS()) {
             video.load();
             await new Promise(resolve => setTimeout(resolve, 300));
           }
           
+          // Play video
           await video.play();
+          
+          // Hide overlay
           overlay.style.display = 'none';
           
+          // Start rendering
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
+          
         } catch (err) {
           console.error("Error:", err);
-          overlay.innerText = "Error starting. Please tap again.";
+          document.querySelector("#loading").textContent = "Error. Please tap again.";
         }
       });
 
-      // For non-iOS devices, try autoplay
+      // On non-iOS devices, try autoplay
       if (!isIOS()) {
         try {
           await mindarThree.start();
