@@ -69,8 +69,7 @@
     }
     
     function isSafari() {
-      const ua = navigator.userAgent.toLowerCase();
-      return (ua.indexOf('safari') !== -1 && ua.indexOf('chrome') === -1 && ua.indexOf('android') === -1);
+      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     }
 
     // Patch getUserMedia to force HD camera constraints
@@ -121,35 +120,19 @@
       let video;
       let videoPlane;
       
-      // Function to initialize video with iOS-specific handling
+      // Function to initialize video
       const initVideo = () => {
         return new Promise((resolve) => {
-          // Video setup with iOS/Safari specific settings
+          // Video setup - use MP4 for iOS/Safari
           video = document.createElement('video');
           video.loop = true;
-          video.muted = true; // Required for iOS autoplay
+          video.muted = true;
           video.playsInline = true;
           video.setAttribute('webkit-playsinline', '');
           video.setAttribute('playsinline', '');
-          video.preload = 'auto';
-          
-          // iOS Safari requires this for reliable playback
-          video.setAttribute('x-webkit-airplay', 'allow');
-          video.setAttribute('x-web-playback', 'allow');
-          
-          // Use MP4 for iOS/Safari (H.264 has best support)
           video.src = (isIOS() || isSafari()) ? 'circuit_1.mp4' : 'circuit_3.webm';
           
-          // Special handling for iOS Safari
-          if (isIOS() || isSafari()) {
-            // iOS often requires direct user interaction for video playback
-            video.setAttribute('autoplay', 'false');
-            video.setAttribute('controls', 'false');
-          } else {
-            video.setAttribute('autoplay', 'true');
-          }
-          
-          // Preload video with error handling
+          // Preload video
           video.load();
           
           const onLoaded = () => {
@@ -175,8 +158,7 @@
             resolve(videoPlane);
           };
           
-          const onError = (err) => {
-            console.error("Video loading error:", err);
+          const onError = () => {
             video.removeEventListener('loadedmetadata', onLoaded);
             video.removeEventListener('error', onError);
             resolve(null);
@@ -187,57 +169,38 @@
         });
       };
 
-      // Enhanced start experience with iOS-specific handling
+      // Function to start AR experience
       const startExperience = async () => {
         try {
           document.querySelector("#loading").textContent = "Starting camera...";
           retryButton.style.display = 'none';
           
-          // Start MindAR first
+          // Start MindAR
           await mindarThree.start();
           
-          // iOS-specific video playback handling
-          if (isIOS() || isSafari()) {
-            document.querySelector("#loading").textContent = "Preparing video...";
-            
-            // Create a temporary button to trigger video play through user interaction
-            const playButton = document.createElement('button');
-            playButton.style.position = 'absolute';
-            playButton.style.opacity = '0';
-            playButton.style.width = '100%';
-            playButton.style.height = '100%';
-            playButton.style.zIndex = '100';
-            container.appendChild(playButton);
-            
-            // When user taps the invisible button
-            await new Promise((resolve) => {
-              playButton.addEventListener('click', async () => {
-                try {
-                  document.querySelector("#loading").textContent = "Starting video...";
-                  await video.play();
-                  playButton.remove();
-                  overlay.style.display = 'none';
-                  resolve();
-                } catch (playErr) {
-                  console.error("iOS video play error:", playErr);
-                  document.querySelector("#loading").textContent = "Error starting video. Please tap again.";
-                  retryButton.style.display = 'block';
-                  playButton.remove();
-                  reject(playErr);
-                }
-              }, { once: true });
-              
-              // Show message to tap the screen
-              document.querySelector("#loading").textContent = "Tap anywhere to start video...";
-            });
-          } else {
-            // Standard playback for non-iOS devices
-            document.querySelector("#loading").textContent = "Starting video...";
-            await video.play();
-            overlay.style.display = 'none';
+          document.querySelector("#loading").textContent = "Starting video...";
+          
+          // Try to play video with retry logic
+          let attempts = 0;
+          const maxAttempts = 3;
+          
+          while (attempts < maxAttempts) {
+            try {
+              await video.play();
+              overlay.style.display = 'none';
+              return; // Success!
+            } catch (videoErr) {
+              attempts++;
+              console.error(`Video play attempt ${attempts} failed:`, videoErr);
+              if (attempts < maxAttempts) {
+                document.querySelector("#loading").textContent = `Starting video (attempt ${attempts + 1}/${maxAttempts})...`;
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }
           }
           
-          return; // Success!
+          // If we get here, all attempts failed
+          throw new Error("All video play attempts failed");
           
         } catch (err) {
           console.error("Error starting experience:", err);
