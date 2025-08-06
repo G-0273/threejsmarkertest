@@ -51,10 +51,10 @@
   <div id="container"></div>
 
   <script>
-    // Detect iOS devices
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    // Detect iOS/Safari devices
+    function isSafari() {
+      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
+             /iPad|iPhone|iPod/.test(navigator.userAgent);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -65,14 +65,14 @@
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
         <div>Tap to Start AR Experience</div>
-        <div id="loading">Loading...</div>
+        <div id="loading">Initializing...</div>
       `;
       container.appendChild(overlay);
 
-      // Initialize MindAR
+      // Initialize MindAR with your target
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
-        imageTargetSrc: "./maintarget.mind",
+        imageTargetSrc: "./maintarget.mind",  // Your marker file
         filterMinCF: 0.05,
         filterBeta: 0.15,
       });
@@ -80,7 +80,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load static image
+      // Load your PNG overlay (positioned above the card)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -91,21 +91,21 @@
           side: THREE.DoubleSide,
         });
         const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.31);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        pngPlane.position.set(0, 0.1, 0.31);  // Your exact position
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // Your 45-degree tilt
         anchor.group.add(pngPlane);
       });
 
-      // Create video element with iOS-specific attributes
+      // Set up video with correct files for each browser
       const video = document.createElement('video');
       video.loop = true;
-      video.muted = true; // Required for iOS autoplay
+      video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
-      
-      // Create video texture and mesh
+      video.src = isSafari() ? 'circuit_1.mp4' : 'circuit_3.webm';  // Your video files
+
+      // Video plane positioned flat on the marker
       const videoTexture = new THREE.VideoTexture(video);
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
       const videoMaterial = new THREE.MeshBasicMaterial({
@@ -115,47 +115,42 @@
         side: THREE.DoubleSide,
       });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0);  // Centered on marker
+      videoPlane.rotation.set(0, 0, 0);  // Flat rotation
       anchor.group.add(videoPlane);
 
-      // Lighting
+      // Lighting setup
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Start everything when user taps
+      // Start experience on user tap
       overlay.addEventListener("click", async () => {
         try {
-          document.querySelector("#loading").textContent = "Starting...";
-          
-          // Start MindAR
+          document.querySelector("#loading").textContent = "Starting AR...";
           await mindarThree.start();
           
-          // iOS requires this sequence for reliable video playback
-          if (isIOS()) {
+          // Special handling for Safari
+          if (isSafari()) {
             video.load();
             await new Promise(resolve => setTimeout(resolve, 300));
           }
           
-          // Play video
           await video.play();
-          
-          // Hide overlay
           overlay.style.display = 'none';
           
-          // Start rendering
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
-          
         } catch (err) {
-          console.error("Error:", err);
-          document.querySelector("#loading").textContent = "Error. Please tap again.";
+          console.error("Start error:", err);
+          document.querySelector("#loading").textContent = "Error starting. Tap again.";
         }
       });
 
-      // On non-iOS devices, try autoplay
-      if (!isIOS()) {
+      // Try autoplay for non-Safari
+      if (!isSafari()) {
         try {
           await mindarThree.start();
           await video.play();
@@ -164,7 +159,7 @@
             renderer.render(scene, camera);
           });
         } catch (err) {
-          console.log("Autoplay blocked, waiting for user interaction");
+          console.log("Autoplay blocked - waiting for interaction");
         }
       }
     });
