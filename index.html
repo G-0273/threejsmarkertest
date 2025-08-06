@@ -23,6 +23,19 @@
       height: 100% !important;
       object-fit: cover;
     }
+    #tap-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5em;
+      z-index: 10;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -58,10 +71,24 @@
       window.addEventListener(event, e => e.preventDefault())
     );
 
+    // Detect iOS devices
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
+      const container = document.querySelector("#container");
+      
+      // Create overlay for iOS
+      const overlay = document.createElement("div");
+      overlay.id = "tap-overlay";
+      overlay.innerText = "Tap to Start Experience";
+      container.appendChild(overlay);
+
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#container"),
-        imageTargetSrc: "./maintarget.mind",
+        container: container,
+        imageTargetSrc: "./targets (1).mind",
         filterMinCF: 0.05,
         filterBeta: 0.15,
       });
@@ -69,70 +96,86 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load circuitdisplay.png (your existing implementation)
+      // Load static image (your working code)
+      let pngPlane = null;
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-
-        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.31); // Slightly above video
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.3);
         pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
 
-      // Load circuit_3.webm video (your previous video implementation style)
+      // Create video element with iOS-specific attributes
       const video = document.createElement('video');
-      video.src = 'circuit_3.webm';
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
+      video.src = 'circuit_1.mp4'; // Use MP4 for iOS compatibility
 
+      // Create video texture and plane
       const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBAFormat;
-
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
       const videoMaterial = new THREE.MeshBasicMaterial({
         map: videoTexture,
         transparent: true,
         alphaTest: 0.05,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
       });
-
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.1, 0.3); // Slightly below image
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
       anchor.group.add(videoPlane);
 
-      // Lighting (your existing implementation)
+      // Lighting (your working code)
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      await mindarThree.start();
-
-      // Video autoplay handling (your previous approach)
-      try {
-        await video.play();
-      } catch (err) {
-        console.log("Autoplay prevented:", err);
-        // Add tap-to-play overlay if needed
-      }
-
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
+      // Start everything when user taps (for iOS)
+      overlay.addEventListener("click", async () => {
+        try {
+          await mindarThree.start();
+          
+          // iOS-specific video playback sequence
+          if (isIOS()) {
+            video.load();
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+          
+          await video.play();
+          overlay.style.display = 'none';
+          
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.error("Error:", err);
+          overlay.innerText = "Error starting. Please tap again.";
+        }
       });
+
+      // For non-iOS devices, try autoplay
+      if (!isIOS()) {
+        try {
+          await mindarThree.start();
+          await video.play();
+          overlay.style.display = 'none';
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.log("Autoplay blocked, waiting for user interaction");
+        }
+      }
     });
   </script>
 </body>
