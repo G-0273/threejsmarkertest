@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,12 +58,9 @@
       window.addEventListener(event, e => e.preventDefault())
     );
 
-    // Detect if the browser likely supports WebM with VP9 alpha transparency
-    function canPlayWebMAlpha() {
-      const v = document.createElement('video');
-      // 'probably' is the strongest positive canPlayType result
-      return v.canPlayType('video/webm; codecs="vp9"') === 'probably' ||
-             v.canPlayType('video/webm; codecs="vp9,opus"') === 'probably';
+    // Detect Safari browser
+    function isSafari() {
+      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -96,16 +92,16 @@
         anchor.group.add(pngPlane);
       });
 
-      // Video setup with fallback
-      const useWebM = canPlayWebMAlpha();
-
+      // Video setup with Safari detection
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.src = useWebM ? 'circuit_3.webm' : 'circuit_1.mp4';
+      
+      // Use MP4 for Safari, WebM for other browsers
+      video.src = isSafari() ? 'circuit_1.mp4' : 'circuit_3.webm';
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
