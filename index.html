@@ -1,160 +1,88 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Video Projection</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: -apple-system, sans-serif;
-    }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    #start-button {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 1.5em;
-      z-index: 10;
-      cursor: pointer;
-    }
-    #start-button.hidden {
-      display: none;
-    }
-    #status {
-      position: absolute;
-      bottom: 20px;
-      width: 100%;
-      text-align: center;
-      color: white;
-      font-size: 0.9em;
-      z-index: 11;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-    }
-  </style>
-</head>
-<body>
-  <div id="container"></div>
-  <div id="start-button" class="hidden">Tap to Start AR</div>
-  <div id="status">Initializing...</div>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const container = document.querySelector("#container");
+  const overlay = document.createElement("div");
+  overlay.id = "tap-overlay";
+  overlay.innerHTML = `
+    <div>Tap to Start AR Experience</div>
+    <div id="status">Initializing...</div>
+  `;
+  container.appendChild(overlay);
 
-  <script>
-    // Safari/iOS detection
-    const isIOS = () => {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    };
+  // 1. First check for target file
+  const statusEl = document.getElementById("status");
+  try {
+    const targetExists = await fetch("./targets (1).mind").then(r => r.ok);
+    if (!targetExists) throw new Error("Target file missing");
+  } catch (e) {
+    statusEl.textContent = "Error: Missing AR target file";
+    return;
+  }
 
-    const startAR = async () => {
-      const statusEl = document.getElementById('status');
-      const startButton = document.getElementById('start-button');
+  // 2. Initialize MindAR
+  const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    container: container,
+    imageTargetSrc: "./targets (1).mind",
+    filterMinCF: 0.05,
+    filterBeta: 0.15,
+  });
+
+  // 3. Set up scene (your existing working code)
+  const { renderer, scene, camera } = mindarThree;
+  const anchor = mindarThree.addAnchor(0);
+  
+  // [Keep your existing pngPlane code...]
+
+  // 4. Initialize video with better error handling
+  statusEl.textContent = "Loading video...";
+  const videoInit = await initVideo();
+  if (!videoInit) {
+    statusEl.textContent = "Error loading video";
+    return;
+  }
+
+  const { video, material } = videoInit;
+  const videoPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5, 1.5),
+    material
+  );
+  anchor.group.add(videoPlane);
+
+  // 5. Start on user interaction
+  overlay.addEventListener("click", async () => {
+    try {
+      statusEl.textContent = "Starting camera...";
+      await mindarThree.start();
       
-      try {
-        // 1. Initialize MindAR
-        statusEl.textContent = "Loading AR engine...";
-        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: document.getElementById("container"),
-          imageTargetSrc: "./targets.mind",
-          maxTrack: 1,
-          filterMinCF: 0.01,
-          filterBeta: 0.1
-        });
-
-        const { renderer, scene, camera } = mindarThree;
-        
-        // 2. Set up video element with iOS-specific attributes
-        statusEl.textContent = "Preparing video...";
-        const video = document.createElement('video');
-        video.src = "video.mp4";
-        video.loop = true;
-        video.muted = true; // Required for iOS autoplay
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', '');
-        video.setAttribute('playsinline', '');
-        video.preload = "auto";
-        
-        // 3. Create video texture and plane
-        const videoTexture = new THREE.VideoTexture(video);
-        const videoGeometry = new THREE.PlaneGeometry(1.5, 1); // Adjust size as needed
-        const videoMaterial = new THREE.MeshBasicMaterial({ 
-          map: videoTexture,
-          transparent: true
-        });
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        
-        // Add to anchor
-        const anchor = mindarThree.addAnchor(0);
-        anchor.group.add(videoPlane);
-
-        // 4. Start AR experience
-        statusEl.textContent = "Starting camera...";
-        await mindarThree.start();
-        
-        // 5. iOS-specific video playback sequence
-        if (isIOS()) {
-          video.load();
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-
-        // 6. Try playing video
-        try {
-          statusEl.textContent = "Starting video...";
-          await video.play();
-          startButton.classList.add("hidden");
-          statusEl.textContent = "";
-        } catch (err) {
-          // Show start button if video play fails
-          startButton.classList.remove("hidden");
-          statusEl.textContent = "Tap to start video";
-        }
-
-        // 7. Set up render loop
-        renderer.setAnimationLoop(() => {
-          renderer.render(scene, camera);
-        });
-
-        // 8. Start button handler
-        startButton.addEventListener("click", async () => {
+      statusEl.textContent = "Starting video...";
+      await video.play();
+      
+      overlay.style.display = 'none';
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
+    } catch (err) {
+      console.error("Start error:", err);
+      statusEl.textContent = `Error: ${err.message}`;
+      
+      // Special laptop fix - sometimes needs double start
+      if (/mac|win/.test(navigator.platform.toLowerCase())) {
+        setTimeout(async () => {
           try {
-            startButton.classList.add("hidden");
-            statusEl.textContent = "Starting...";
+            await mindarThree.start();
             await video.play();
-            statusEl.textContent = "";
-          } catch (err) {
-            statusEl.textContent = "Error starting video";
-            startButton.classList.remove("hidden");
+            overlay.style.display = 'none';
+          } catch (e) {
+            statusEl.textContent = "Still stuck? Refresh page";
           }
-        });
-
-      } catch (err) {
-        console.error("AR initialization failed:", err);
-        statusEl.textContent = "Failed to initialize AR";
-        startButton.classList.remove("hidden");
-        startButton.textContent = "Try Again";
-        startButton.addEventListener("click", () => window.location.reload());
+        }, 500);
       }
-    };
+    }
+  });
 
-    // Start with slight delay to ensure DOM is ready
-    setTimeout(startAR, 100);
-  </script>
-</body>
-</html>
+  // Try autostart on non-mobile
+  if (!/mobi/i.test(navigator.userAgent)) {
+    overlay.click(); // Simulate click
+  }
+});
+</script>
