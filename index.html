@@ -23,55 +23,12 @@
       height: 100% !important;
       object-fit: cover;
     }
-    #tap-overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5em;
-      z-index: 10;
-      cursor: pointer;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    #loading {
-      margin-top: 20px;
-      font-size: 1em;
-      color: #ccc;
-    }
-    #retry-button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 1em;
-      cursor: pointer;
-      display: none;
-    }
   </style>
 </head>
 <body>
   <div id="container"></div>
 
   <script>
-    // Enhanced iOS/Safari detection
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
-    
-    function isSafari() {
-      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    }
-
     // Patch getUserMedia to force HD camera constraints
     const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = (constraints) => {
@@ -94,7 +51,6 @@
       return origGetUserMedia(constraints);
     };
 
-    // Prevent unwanted gestures
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
@@ -103,200 +59,80 @@
     );
 
     document.addEventListener("DOMContentLoaded", async () => {
-      const container = document.querySelector("#container");
-      
-      // Create overlay with loading state
-      const overlay = document.createElement("div");
-      overlay.id = "tap-overlay";
-      overlay.innerHTML = `
-        <div>Tap to Start AR Experience</div>
-        <div id="loading">Initializing...</div>
-        <button id="retry-button">Try Again</button>
-      `;
-      container.appendChild(overlay);
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: document.querySelector("#container"),
+        imageTargetSrc: "./maintarget.mind",
+        filterMinCF: 0.05,
+        filterBeta: 0.15,
+      });
 
-      const retryButton = document.getElementById("retry-button");
-      let mindarThree;
-      let video;
-      let videoPlane;
-      
-      // Function to initialize video
-      const initVideo = () => {
-        return new Promise((resolve) => {
-          // Video setup - use MP4 for iOS/Safari
-          video = document.createElement('video');
-          video.loop = true;
-          video.muted = true;
-          video.playsInline = true;
-          video.setAttribute('webkit-playsinline', '');
-          video.setAttribute('playsinline', '');
-          video.src = (isIOS() || isSafari()) ? 'circuit_1.mp4' : 'circuit_3.webm';
-          
-          // Preload video
-          video.load();
-          
-          const onLoaded = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            video.removeEventListener('error', onError);
-            
-            const videoTexture = new THREE.VideoTexture(video);
-            videoTexture.minFilter = THREE.LinearFilter;
-            videoTexture.magFilter = THREE.LinearFilter;
-            videoTexture.format = THREE.RGBAFormat;
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
 
-            const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
-            const videoMaterial = new THREE.MeshBasicMaterial({
-              map: videoTexture,
-              transparent: true,
-              alphaTest: 0.05,
-              side: THREE.DoubleSide,
-            });
+      // Load circuitdisplay.png (your existing implementation)
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false;
 
-            videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-            videoPlane.position.set(0, 0, 0);
-            videoPlane.rotation.set(0, 0, 0);
-            resolve(videoPlane);
-          };
-          
-          const onError = () => {
-            video.removeEventListener('loadedmetadata', onLoaded);
-            video.removeEventListener('error', onError);
-            resolve(null);
-          };
-          
-          video.addEventListener('loadedmetadata', onLoaded);
-          video.addEventListener('error', onError);
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide,
         });
-      };
 
-      // Function to start AR experience
-      const startExperience = async () => {
-        try {
-          document.querySelector("#loading").textContent = "Starting camera...";
-          retryButton.style.display = 'none';
-          
-          // Start MindAR
-          await mindarThree.start();
-          
-          document.querySelector("#loading").textContent = "Starting video...";
-          
-          // Try to play video with retry logic
-          let attempts = 0;
-          const maxAttempts = 3;
-          
-          while (attempts < maxAttempts) {
-            try {
-              await video.play();
-              overlay.style.display = 'none';
-              return; // Success!
-            } catch (videoErr) {
-              attempts++;
-              console.error(`Video play attempt ${attempts} failed:`, videoErr);
-              if (attempts < maxAttempts) {
-                document.querySelector("#loading").textContent = `Starting video (attempt ${attempts + 1}/${maxAttempts})...`;
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-            }
-          }
-          
-          // If we get here, all attempts failed
-          throw new Error("All video play attempts failed");
-          
-        } catch (err) {
-          console.error("Error starting experience:", err);
-          document.querySelector("#loading").textContent = "Error starting video. Please tap again.";
-          retryButton.style.display = 'block';
-          throw err;
-        }
-      };
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31); // Slightly above video
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        anchor.group.add(pngPlane);
+      });
 
-      // Initialize everything
+      // Load circuit_3.webm video (your previous video implementation style)
+      const video = document.createElement('video');
+      video.src = 'circuit_3.webm';
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
+
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        map: videoTexture,
+        transparent: true,
+        alphaTest: 0.05,
+        side: THREE.DoubleSide
+      });
+
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.1, 0.3); // Slightly below image
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      anchor.group.add(videoPlane);
+
+      // Lighting (your existing implementation)
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
+
+      await mindarThree.start();
+
+      // Video autoplay handling (your previous approach)
       try {
-        // Initialize MindAR
-        mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: container,
-          imageTargetSrc: "./maintarget.mind",
-          filterMinCF: 0.05,
-          filterBeta: 0.15,
-          uiLoading: "no",
-          uiScanning: "no",
-          uiError: "no",
-        });
-
-        const { renderer, scene, camera } = mindarThree;
-        const anchor = mindarThree.addAnchor(0);
-
-        // Load static image
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load("circuitdisplay.png", (texture) => {
-          texture.flipY = false;
-          const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-          const pngMaterial = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-          });
-          const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-          pngPlane.position.set(0, 0.1, 0.31);
-          pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-          anchor.group.add(pngPlane);
-        });
-
-        // Initialize video
-        document.querySelector("#loading").textContent = "Loading video...";
-        const videoMesh = await initVideo();
-        
-        if (videoMesh) {
-          anchor.group.add(videoMesh);
-          document.querySelector("#loading").textContent = "Ready to start";
-        } else {
-          throw new Error("Failed to load video");
-        }
-
-        // Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(1, 2, 3);
-        scene.add(dirLight);
-
-        // Set up render loop
-        renderer.setAnimationLoop(() => {
-          renderer.render(scene, camera);
-        });
-
-        // Set up event listeners
-        overlay.addEventListener("click", async () => {
-          try {
-            await startExperience();
-          } catch (err) {
-            // Error already handled in startExperience
-          }
-        });
-
-        retryButton.addEventListener("click", async () => {
-          try {
-            await startExperience();
-          } catch (err) {
-            // Error already handled in startExperience
-          }
-        });
-
-        // Try autoplay on non-iOS/Safari
-        if (!isIOS() && !isSafari()) {
-          try {
-            await startExperience();
-          } catch (err) {
-            // Fall back to tap-to-start
-            overlay.style.display = 'flex';
-          }
-        }
-
-      } catch (initErr) {
-        console.error("Initialization error:", initErr);
-        document.querySelector("#loading").textContent = "Initialization failed. Please refresh or try another browser.";
-        retryButton.style.display = 'block';
-        retryButton.addEventListener("click", () => window.location.reload());
+        await video.play();
+      } catch (err) {
+        console.log("Autoplay prevented:", err);
+        // Add tap-to-play overlay if needed
       }
+
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
     });
   </script>
 </body>
