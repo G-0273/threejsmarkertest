@@ -51,12 +51,6 @@
   <div id="container"></div>
 
   <script>
-    // Detect iOS/Safari
-    function isSafari() {
-      return /^((?!chrome|android).)*safari/i.test(navigator.userAgent) || 
-             /iPad|iPhone|iPod/.test(navigator.userAgent);
-    }
-
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
       
@@ -69,7 +63,7 @@
       `;
       container.appendChild(overlay);
 
-      // Initialize MindAR with your target
+      // Initialize MindAR
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -80,7 +74,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load your PNG overlay (positioned above the card)
+      // Load static image (positioned above the card)
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -96,21 +90,17 @@
         anchor.group.add(pngPlane);
       });
 
-      // Safari-specific video implementation (your method)
+      // Create video element with Safari-specific attributes
       const video = document.createElement('video');
-      video.src = "circuit_1.mp4"; // Your Safari video
+      video.src = "circuit_1.mp4"; // Your Safari video file
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.preload = "auto";
       
-      // Add video to DOM (hidden) - crucial for Safari
-      video.style.position = 'absolute';
-      video.style.opacity = '0';
-      video.style.zIndex = '-1000';
-      video.style.pointerEvents = 'none';
+      // Add video to DOM (hidden) - CRUCIAL FOR SAFARI
+      video.style.display = 'none';
       document.body.appendChild(video);
 
       // Create video plane
@@ -123,7 +113,7 @@
         side: THREE.DoubleSide,
       });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0);
+      videoPlane.position.set(0, 0, 0); // Flat on marker
       anchor.group.add(videoPlane);
 
       // Lighting
@@ -135,12 +125,26 @@
       // Start experience handler
       const startExperience = async () => {
         try {
-          document.querySelector("#loading").textContent = "Starting camera...";
+          document.querySelector("#loading").textContent = "Starting AR...";
           await mindarThree.start();
           
-          // Your Safari video playback sequence
-          document.querySelector("#loading").textContent = "Loading video...";
+          // SAFARI-SPECIFIC VIDEO SEQUENCE
+          document.querySelector("#loading").textContent = "Preparing video...";
           video.load();
+          
+          // Wait for video to be ready
+          await new Promise((resolve) => {
+            const checkReady = () => {
+              if (video.readyState > 2) {
+                resolve();
+              } else {
+                setTimeout(checkReady, 100);
+              }
+            };
+            checkReady();
+          });
+          
+          // Short delay - crucial for Safari
           await new Promise(resolve => setTimeout(resolve, 300));
           
           document.querySelector("#loading").textContent = "Starting video...";
@@ -150,28 +154,15 @@
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
+          
         } catch (err) {
           console.error("Start error:", err);
-          document.querySelector("#loading").textContent = "Error starting. Tap again.";
+          document.querySelector("#loading").textContent = "Error starting. Please tap again.";
         }
       };
 
       // Set up event listeners
       overlay.addEventListener("click", startExperience);
-
-      // For Safari, don't attempt autoplay - wait for user interaction
-      if (!isSafari()) {
-        try {
-          await mindarThree.start();
-          await video.play();
-          overlay.style.display = 'none';
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-        } catch (err) {
-          console.log("Autoplay blocked - waiting for interaction");
-        }
-      }
     });
   </script>
 </body>
