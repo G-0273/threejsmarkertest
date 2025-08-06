@@ -51,7 +51,7 @@
   <div id="container"></div>
 
   <script>
-    // Reliable iOS Safari detection
+    // Reliable iOS detection
     function isIOS() {
       return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -59,7 +59,7 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
-      const overlay = document.querySelector("#tap-overlay") || document.createElement("div");
+      const overlay = document.createElement("div");
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
         <div>Tap to Start AR Experience</div>
@@ -81,7 +81,7 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load static image (positioned above the card)
+      // Load static image
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -97,20 +97,18 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create video element with iOS-specific attributes
+      // Create video element
       const video = document.createElement('video');
+      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
+      video.preload = "auto";
       
-      // CRUCIAL: Add video to DOM (hidden) for iOS
-      video.style.position = 'absolute';
-      video.style.opacity = '0';
-      video.style.zIndex = '-1000';
-      video.style.pointerEvents = 'none';
+      // Add to DOM (required for iOS)
+      video.style.display = 'none';
       document.body.appendChild(video);
 
       // Create video plane
@@ -135,16 +133,18 @@
       // iOS-specific initialization
       const initForIOS = async () => {
         try {
-          document.querySelector("#loading").textContent = "Loading AR...";
+          // Step 1: Start AR first
+          document.querySelector("#loading").textContent = "Starting AR...";
           await mindarThree.start();
           
-          document.querySelector("#loading").textContent = "Preparing video...";
+          // Step 2: Prepare video (must happen after AR starts on iOS)
+          document.querySelector("#loading").textContent = "Loading video...";
           video.load();
           
           // Wait for video to be ready
           await new Promise((resolve) => {
             const checkReady = () => {
-              if (video.readyState > 2) { // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA
+              if (video.readyState > 2) { // HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4)
                 resolve();
               } else {
                 setTimeout(checkReady, 100);
@@ -153,20 +153,20 @@
             checkReady();
           });
           
-          // Required delay for iOS
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
+          // Step 3: Play video with delay
           document.querySelector("#loading").textContent = "Starting video...";
+          await new Promise(resolve => setTimeout(resolve, 500)); // Crucial delay
           await video.play();
           
+          // Success - hide overlay
           overlay.style.display = 'none';
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
           
         } catch (err) {
-          console.error("iOS Start error:", err);
-          document.querySelector("#loading").textContent = "Error starting. Please tap again.";
+          console.error("iOS Error:", err);
+          document.querySelector("#loading").textContent = "Failed to start. Tap to retry.";
           overlay.onclick = initForIOS; // Allow retry
         }
       };
@@ -182,11 +182,11 @@
           });
         } catch (err) {
           console.log("Autoplay blocked - waiting for interaction");
-          overlay.onclick = initForOthers; // Fallback to click handler
+          overlay.onclick = initForOthers;
         }
       };
 
-      // Set up initial click handler
+      // Set initial click handler based on platform
       overlay.onclick = isIOS() ? initForIOS : initForOthers;
 
       // Try autoplay for non-iOS
