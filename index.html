@@ -3,128 +3,127 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>MindAR Video Autoplay with Marker Show/Hide</title>
+  <title>MindAR Video Autoplay with Proper UI</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js"></script>
   <style>
-    body, html {
-      margin: 0; padding: 0; overflow: hidden; background: black;
+    html, body {
+      margin: 0; padding: 0; overflow: hidden; background: black; height: 100%;
       touch-action: none;
     }
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+      background: black;
+    }
     canvas {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      width: 100% !important;
+      height: 100% !important;
       object-fit: cover;
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    video#hidden-video {
+      position: absolute !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      width: 1px !important;
+      height: 1px !important;
+      top: -10000px !important;
+      left: -10000px !important;
+      z-index: -1000 !important;
     }
   </style>
 </head>
 <body>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  // Detect iOS
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  const videoSrc = isIOS ? "circuit_1.mp4" : "circuit_3.webm";
+  <div id="container"></div>
 
-  // Create and setup video element immediately for autoplay
-  const video = document.createElement("video");
-  video.src = videoSrc;
-  video.muted = true;
-  video.playsInline = true;
-  video.autoplay = true;
-  video.loop = true;
-  video.crossOrigin = "anonymous";
-  video.style.position = "absolute";
-  video.style.opacity = "0";
-  video.style.pointerEvents = "none";
-  video.style.zIndex = "-1000";
-  document.body.appendChild(video);
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      const videoSrc = isIOS ? "circuit_1.mp4" : "circuit_3.webm";
 
-  // Play video immediately
-  const playPromise = video.play();
+      const container = document.getElementById("container");
 
-  // Function to init MindAR once video plays
-  function startMindAR() {
-    const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-      container: document.body,
-      imageTargetSrc: "maintarget.mind",
-      uiLoading: "no",
-      uiScanning: "no",
-      uiError: "no"
-    });
+      // Create hidden video element for autoplay
+      const video = document.createElement("video");
+      video.id = "hidden-video";
+      video.src = videoSrc;
+      video.muted = true;
+      video.playsInline = true;
+      video.autoplay = true;
+      video.loop = true;
+      video.crossOrigin = "anonymous";
+      document.body.appendChild(video);
 
-    const { renderer, scene, camera } = mindarThree;
+      // Play video
+      const playPromise = video.play();
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(1, 2, 3);
-    scene.add(dirLight);
+      function startMindAR() {
+        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+          container: container,
+          imageTargetSrc: "maintarget.mind",
+          uiLoading: "yes",   // default UI enabled
+          uiScanning: "yes",  // scanning box enabled
+          uiError: "yes",
+        });
 
-    // Create anchor for target 0
-    const anchor = mindarThree.addAnchor(0);
+        const { renderer, scene, camera } = mindarThree;
 
-    // Create video texture and plane but initially hidden
-    const videoTexture = new THREE.VideoTexture(video);
-    const videoMaterial = new THREE.MeshBasicMaterial({
-      map: videoTexture,
-      transparent: true,
-      alphaTest: 0.05,
-      side: THREE.DoubleSide,
-    });
-    const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
-    const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-    videoPlane.position.set(0, 0, 0);
-    videoPlane.visible = false; // Hide initially
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(1, 2, 3);
+        scene.add(dirLight);
 
-    // Add event listeners to show/hide video plane on marker detection
-    anchor.onTargetFound = () => {
-      if (!anchor.group.children.includes(videoPlane)) {
-        anchor.group.add(videoPlane);
+        // Anchor for target 0
+        const anchor = mindarThree.addAnchor(0);
+
+        // Create video texture and plane but initially hidden
+        const videoTexture = new THREE.VideoTexture(video);
+        const videoMaterial = new THREE.MeshBasicMaterial({
+          map: videoTexture,
+          transparent: true,
+          alphaTest: 0.05,
+          side: THREE.DoubleSide,
+        });
+        const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+        videoPlane.position.set(0, 0, 0);
+        videoPlane.visible = false; // hide initially
+
+        // Show video plane only on marker detection
+        anchor.onTargetFound = () => {
+          if (!anchor.group.children.includes(videoPlane)) {
+            anchor.group.add(videoPlane);
+          }
+          videoPlane.visible = true;
+        };
+        anchor.onTargetLost = () => {
+          videoPlane.visible = false;
+        };
+
+        // Start MindAR and render loop
+        mindarThree.start();
+        renderer.setAnimationLoop(() => {
+          renderer.render(scene, camera);
+        });
       }
-      videoPlane.visible = true;
-    };
 
-    anchor.onTargetLost = () => {
-      videoPlane.visible = false;
-    };
-
-    // Optionally, add your PNG overlay like before (example below)
-    /*
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load("circuitdisplay.png", (texture) => {
-      texture.flipY = false;
-      const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const pngMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        side: THREE.DoubleSide,
-      });
-      const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-      pngPlane.position.set(0, 0.1, 0.31);
-      pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-      anchor.group.add(pngPlane);
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          startMindAR();
+        }).catch((err) => {
+          console.warn("Autoplay blocked or failed:", err);
+          startMindAR();
+        });
+      } else {
+        startMindAR();
+      }
     });
-    */
-
-    // Start MindAR and render loop
-    mindarThree.start();
-    renderer.setAnimationLoop(() => {
-      renderer.render(scene, camera);
-    });
-  }
-
-  // Start MindAR after video plays (or fallback immediately)
-  if (playPromise !== undefined) {
-    playPromise.then(() => {
-      startMindAR();
-    }).catch((err) => {
-      console.warn("Autoplay blocked or failed:", err);
-      // Even if autoplay blocked, try starting MindAR anyway
-      startMindAR();
-    });
-  } else {
-    startMindAR();
-  }
-});
-</script>
+  </script>
 </body>
 </html>
