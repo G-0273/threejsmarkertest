@@ -2,48 +2,59 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>MindAR AR with Video Plane and Camera Feed</title>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Projection</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
     html, body {
-      margin: 0; padding: 0; overflow: hidden; background: black; height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
       touch-action: none;
     }
     #container {
       width: 100vw;
       height: 100vh;
       position: relative;
-      overflow: hidden;
-      background: black;
     }
     canvas {
       width: 100% !important;
       height: 100% !important;
       object-fit: cover;
+    }
+    #tap-overlay {
       position: absolute;
       top: 0; left: 0;
-      z-index: 2;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5em;
+      z-index: 10;
+      cursor: pointer;
+      text-align: center;
+      padding: 20px;
+      box-sizing: border-box;
     }
-    video#hidden-video {
-      position: absolute !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
-      width: 1px !important;
-      height: 1px !important;
-      top: -10000px !important;
-      left: -10000px !important;
-      z-index: -1000 !important;
+    #loading {
+      margin-top: 20px;
+      font-size: 1em;
+      color: #ccc;
     }
-    /* MindAR video feed background */
-    video.mindar-video {
-      position: absolute !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      object-fit: cover !important;
-      top: 0; left: 0;
-      z-index: 1 !important;
+    #retry-button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1em;
+      cursor: pointer;
+      display: none;
     }
   </style>
 </head>
@@ -51,97 +62,145 @@
   <div id="container"></div>
 
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      const videoSrc = isIOS ? "circuit_1.mp4" : "circuit_3.webm";
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
 
-      const container = document.getElementById("container");
+    document.addEventListener("DOMContentLoaded", async () => {
+      const container = document.querySelector("#container");
 
-      // Create hidden video element for autoplay
-      const video = document.createElement("video");
-      video.id = "hidden-video";
-      video.src = videoSrc;
-      video.muted = true;
-      video.playsInline = true;
-      video.autoplay = true;
-      video.loop = true;
-      video.crossOrigin = "anonymous";
-      document.body.appendChild(video);
+      // Overlay UI
+      const overlay = document.createElement("div");
+      overlay.id = "tap-overlay";
+      overlay.innerHTML = `
+        <div id="overlay-text">Tap to Start Video</div>
+        <div id="loading"></div>
+        <button id="retry-button">Retry</button>
+      `;
+      container.appendChild(overlay);
+      const retryButton = document.getElementById("retry-button");
+      const overlayText = document.getElementById("overlay-text");
+      const loadingText = document.getElementById("loading");
 
-      const playPromise = video.play();
+      // MindAR setup
+      const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+        container: container,
+        imageTargetSrc: "./maintarget.mind",
+        filterMinCF: 0.05,
+        filterBeta: 0.15,
+        uiLoading: "no",
+        uiScanning: "no",
+        uiError: "no"
+      });
+      const { renderer, scene, camera } = mindarThree;
+      const anchor = mindarThree.addAnchor(0);
 
-      function startMindAR() {
-        const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-          container: container,
-          imageTargetSrc: "maintarget.mind",
-          uiLoading: "yes",
-          uiScanning: "yes",
-          uiError: "yes"
-        });
-
-        const { renderer, scene, camera } = mindarThree;
-
-        // Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(1, 2, 3);
-        scene.add(dirLight);
-
-        const anchor = mindarThree.addAnchor(0);
-
-        // Video texture and plane
-        const videoTexture = new THREE.VideoTexture(video);
-        const videoMaterial = new THREE.MeshBasicMaterial({
-          map: videoTexture,
+      // PNG overlay above card
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false;
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
           transparent: true,
-          alphaTest: 0.05,
           side: THREE.DoubleSide,
         });
-        const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
-        const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.position.set(0, 0, 0);
-        videoPlane.visible = false;
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        anchor.group.add(pngPlane);
+      });
 
-        anchor.onTargetFound = () => {
-          if (!anchor.group.children.includes(videoPlane)) {
-            anchor.group.add(videoPlane);
-          }
-          videoPlane.visible = true;
-        };
+      // Video element
+      const video = document.createElement('video');
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
+      document.body.appendChild(video);
 
-        anchor.onTargetLost = () => {
-          videoPlane.visible = false;
-        };
+      // Video material
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        transparent: true,
+        alphaTest: 0.05,
+        side: THREE.DoubleSide,
+      });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0);
+      anchor.group.add(videoPlane);
 
-        mindarThree.start().then(() => {
-          // MindAR adds its camera video feed as a video element with class mindar-video,
-          // so let's ensure it is visible and properly styled (z-index 1 behind canvas)
-          const cameraVideo = container.querySelector("video.mindar-video");
-          if(cameraVideo) {
-            cameraVideo.style.zIndex = "1";
-            cameraVideo.style.position = "absolute";
-            cameraVideo.style.width = "100vw";
-            cameraVideo.style.height = "100vh";
-            cameraVideo.style.objectFit = "cover";
-            cameraVideo.style.top = "0";
-            cameraVideo.style.left = "0";
-          }
-        });
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
-        renderer.setAnimationLoop(() => {
-          renderer.render(scene, camera);
-        });
-      }
+      // Step 1: Start video only
+      const startVideo = async () => {
+        try {
+          retryButton.style.display = 'none';
+          loadingText.textContent = "Starting video...";
+          video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
+          video.load();
+          await video.play();
+          // Once video is running, set texture
+          const videoTexture = new THREE.VideoTexture(video);
+          videoTexture.needsUpdate = true;
+          videoMaterial.map = videoTexture;
+          videoMaterial.needsUpdate = true;
+          loadingText.textContent = "";
+          overlayText.textContent = "Tap to Start AR";
+          // Next tap will start AR
+          overlay.onclick = startAR;
+        } catch (err) {
+          console.error("Video start failed:", err);
+          loadingText.textContent = "Failed to start video";
+          retryButton.style.display = 'block';
+        }
+      };
 
-      if (playPromise !== undefined) {
-        playPromise.then(() => {
-          startMindAR();
-        }).catch((err) => {
-          console.warn("Autoplay blocked or failed:", err);
-          startMindAR();
-        });
+      // Step 2: Start AR
+      const startAR = async () => {
+        try {
+          retryButton.style.display = 'none';
+          loadingText.textContent = "Starting AR...";
+          await mindarThree.start();
+          overlay.style.display = 'none';
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.error("AR start failed:", err);
+          loadingText.textContent = "Failed to start AR";
+          retryButton.style.display = 'block';
+        }
+      };
+
+      retryButton.addEventListener("click", () => {
+        overlay.onclick = startVideo;
+        overlayText.textContent = "Tap to Start Video";
+        loadingText.textContent = "";
+        retryButton.style.display = 'none';
+      });
+
+      // iOS: two taps, Desktop: one tap auto-start
+      if (isIOS()) {
+        overlay.onclick = startVideo;
       } else {
-        startMindAR();
+        try {
+          await startVideo();
+          await startAR();
+        } catch (err) {
+          console.log("Desktop autoplay blocked, waiting for interaction");
+          overlay.onclick = startVideo;
+        }
       }
     });
   </script>
