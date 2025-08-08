@@ -74,12 +74,14 @@
       const overlay = document.createElement("div");
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
-        <div>Tap to Start AR Experience</div>
-        <div id="loading">Initializing...</div>
+        <div id="overlay-text">Tap to Start Video</div>
+        <div id="loading"></div>
         <button id="retry-button">Retry</button>
       `;
       container.appendChild(overlay);
       const retryButton = document.getElementById("retry-button");
+      const overlayText = document.getElementById("overlay-text");
+      const loadingText = document.getElementById("loading");
 
       // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -123,7 +125,7 @@
       video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
-      // Video material (will set map after play)
+      // Video material
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
       const videoMaterial = new THREE.MeshBasicMaterial({
         transparent: true,
@@ -140,54 +142,67 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // iOS/desktop start logic
-      const startAR = async () => {
+      // Step 1: Start video only
+      const startVideo = async () => {
         try {
           retryButton.style.display = 'none';
-          document.querySelector("#loading").textContent = "Starting video...";
-
-          // Set source before playing
+          loadingText.textContent = "Starting video...";
           video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
           video.load();
-
-          // Play video first (gesture context)
           await video.play();
-
-          // Create texture after video starts
+          // Once video is running, set texture
           const videoTexture = new THREE.VideoTexture(video);
           videoTexture.needsUpdate = true;
           videoMaterial.map = videoTexture;
           videoMaterial.needsUpdate = true;
-
-          document.querySelector("#loading").textContent = "Starting AR...";
-          await mindarThree.start();
-
-          overlay.style.display = 'none';
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-
+          loadingText.textContent = "";
+          overlayText.textContent = "Tap to Start AR";
+          // Next tap will start AR
+          overlay.onclick = startAR;
         } catch (err) {
-          console.error("Start failed:", err);
-          document.querySelector("#loading").textContent = "Failed to start";
+          console.error("Video start failed:", err);
+          loadingText.textContent = "Failed to start video";
           retryButton.style.display = 'block';
         }
       };
 
-      overlay.addEventListener("click", startAR);
-      retryButton.addEventListener("click", startAR);
-
-      // Desktop auto-start
-      if (!isIOS()) {
+      // Step 2: Start AR
+      const startAR = async () => {
         try {
+          retryButton.style.display = 'none';
+          loadingText.textContent = "Starting AR...";
+          await mindarThree.start();
+          overlay.style.display = 'none';
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.error("AR start failed:", err);
+          loadingText.textContent = "Failed to start AR";
+          retryButton.style.display = 'block';
+        }
+      };
+
+      retryButton.addEventListener("click", () => {
+        overlay.onclick = startVideo;
+        overlayText.textContent = "Tap to Start Video";
+        loadingText.textContent = "";
+        retryButton.style.display = 'none';
+      });
+
+      // iOS: two taps, Desktop: one tap auto-start
+      if (isIOS()) {
+        overlay.onclick = startVideo;
+      } else {
+        try {
+          await startVideo();
           await startAR();
         } catch (err) {
-          console.log("Autoplay blocked - waiting for interaction");
+          console.log("Desktop autoplay blocked, waiting for interaction");
+          overlay.onclick = startVideo;
         }
       }
     });
   </script>
 </body>
 </html>
-
-
