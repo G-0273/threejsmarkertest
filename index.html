@@ -62,7 +62,6 @@
   <div id="container"></div>
 
   <script>
-    // Reliable iOS detection
     function isIOS() {
       return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -70,8 +69,8 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
-      
-      // Create overlay with retry button
+
+      // Overlay UI
       const overlay = document.createElement("div");
       overlay.id = "tap-overlay";
       overlay.innerHTML = `
@@ -82,7 +81,7 @@
       container.appendChild(overlay);
       const retryButton = document.getElementById("retry-button");
 
-      // Initialize MindAR
+      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -92,11 +91,10 @@
         uiScanning: "no",
         uiError: "no"
       });
-
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Load static image (positioned above the card)
+      // PNG overlay above card
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
@@ -112,27 +110,22 @@
         anchor.group.add(pngPlane);
       });
 
-      // Create video element with iOS-specific attributes
+      // Video element
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute('webkit-playsinline', '');
       video.setAttribute('playsinline', '');
-      video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
-      
-      // CRUCIAL: Add video to DOM (hidden) for iOS
       video.style.position = 'absolute';
       video.style.opacity = '0';
       video.style.zIndex = '-1000';
       video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
-      // Create video plane
-      const videoTexture = new THREE.VideoTexture(video);
+      // Video material (will set map after play)
       const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
       const videoMaterial = new THREE.MeshBasicMaterial({
-        map: videoTexture,
         transparent: true,
         alphaTest: 0.05,
         side: THREE.DoubleSide,
@@ -147,84 +140,47 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // iOS-specific initialization with timeout fallback
-      const initForIOS = async () => {
+      // iOS/desktop start logic
+      const startAR = async () => {
         try {
           retryButton.style.display = 'none';
-          document.querySelector("#loading").textContent = "Starting AR...";
-          
-          // Start AR first
-          await mindarThree.start();
-          
-          document.querySelector("#loading").textContent = "Loading video...";
-          video.load();
-          
-          // Wait for video with timeout fallback
-          let videoReady = false;
-          const videoReadyCheck = () => {
-            if (video.readyState > 2) {
-              videoReady = true;
-              return true;
-            }
-            return false;
-          };
-          
-          // Wait up to 3 seconds for video to load
-          await new Promise((resolve) => {
-            const startTime = Date.now();
-            const checkInterval = setInterval(() => {
-              if (videoReadyCheck() || (Date.now() - startTime) > 3000) {
-                clearInterval(checkInterval);
-                resolve();
-              }
-            }, 100);
-          });
-          
-          if (!videoReady) {
-            throw new Error("Video took too long to load");
-          }
-          
           document.querySelector("#loading").textContent = "Starting video...";
-          
-          // Try playing video with multiple attempts
-          let attempts = 0;
-          while (attempts < 3) {
-            try {
-              await video.play();
-              break;
-            } catch (err) {
-              attempts++;
-              if (attempts >= 3) throw err;
-              await new Promise(resolve => setTimeout(resolve, 300 * attempts));
-            }
-          }
-          
-          // Success - hide overlay
+
+          // Set source before playing
+          video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
+          video.load();
+
+          // Play video first (gesture context)
+          await video.play();
+
+          // Create texture after video starts
+          const videoTexture = new THREE.VideoTexture(video);
+          videoTexture.needsUpdate = true;
+          videoMaterial.map = videoTexture;
+          videoMaterial.needsUpdate = true;
+
+          document.querySelector("#loading").textContent = "Starting AR...";
+          await mindarThree.start();
+
           overlay.style.display = 'none';
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
-          
+
         } catch (err) {
-          console.error("iOS Error:", err);
-          document.querySelector("#loading").textContent = "Failed to start video";
+          console.error("Start failed:", err);
+          document.querySelector("#loading").textContent = "Failed to start";
           retryButton.style.display = 'block';
         }
       };
 
-      // Set up event listeners
-      overlay.addEventListener("click", initForIOS);
-      retryButton.addEventListener("click", initForIOS);
+      overlay.addEventListener("click", startAR);
+      retryButton.addEventListener("click", startAR);
 
-      // For non-iOS devices
+      // Desktop auto-start
       if (!isIOS()) {
         try {
-          await mindarThree.start();
-          await video.play();
-          overlay.style.display = 'none';
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
+          await startAR();
         } catch (err) {
           console.log("Autoplay blocked - waiting for interaction");
         }
@@ -233,3 +189,5 @@
   </script>
 </body>
 </html>
+
+
