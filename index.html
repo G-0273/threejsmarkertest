@@ -147,16 +147,22 @@
         try {
           retryButton.style.display = 'none';
           loadingText.textContent = "Starting video...";
-          video.src = isIOS() ? 'circuit_1.mp4' : 'circuit_3.webm';
+          
+          // Only HEVC + Alpha MP4 on Google Drive
+          const driveVideo = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
+          video.src = driveVideo;
           video.load();
           await video.play();
+
           // Once video is running, set texture
           const videoTexture = new THREE.VideoTexture(video);
           videoTexture.needsUpdate = true;
           videoMaterial.map = videoTexture;
           videoMaterial.needsUpdate = true;
+
           loadingText.textContent = "";
           overlayText.textContent = "Tap to Start AR";
+
           // Next tap will start AR
           overlay.onclick = startAR;
         } catch (err) {
