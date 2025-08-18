@@ -99,8 +99,15 @@
       // Video start function
       const startVideo = async () => {
         try {
-          const driveVideo = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
-          video.src = driveVideo;
+          let videoSrc;
+          if (isIOS()) {
+            // iOS Safari uses HEVC + Alpha
+            videoSrc = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
+          } else {
+            // Desktop uses previous WebM/MP4 file
+            videoSrc = "./circuit_3.webm"; // replace with your working desktop file
+          }
+          video.src = videoSrc;
           video.load();
           await video.play();
 
@@ -125,22 +132,28 @@
         }
       };
 
-      // Mobile/iOS: auto-start video and AR
+      // Mobile/iOS: invisible tap to start
       if (isIOS()) {
-        await startVideo();
-        await startAR();
-      } else {
-        // Desktop: maintain overlay / tap logic if needed
-        const overlay = document.createElement("div");
-        overlay.id = "tap-overlay";
-        overlay.innerHTML = `<div>Tap to Start Video & AR</div>`;
-        container.appendChild(overlay);
+        const touchLayer = document.createElement("div");
+        touchLayer.style.position = "absolute";
+        touchLayer.style.top = "0";
+        touchLayer.style.left = "0";
+        touchLayer.style.width = "100%";
+        touchLayer.style.height = "100%";
+        touchLayer.style.zIndex = "9999";
+        touchLayer.style.background = "transparent";
+        document.body.appendChild(touchLayer);
 
-        overlay.onclick = async () => {
+        touchLayer.addEventListener("touchstart", async () => {
+          touchLayer.remove();
           await startVideo();
           await startAR();
-          overlay.style.display = 'none';
-        };
+        }, { once: true });
+
+      } else {
+        // Desktop: auto-start video & AR
+        await startVideo();
+        await startAR();
       }
     });
   </script>
