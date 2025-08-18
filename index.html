@@ -23,39 +23,6 @@
       height: 100% !important;
       object-fit: cover;
     }
-    #tap-overlay {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5em;
-      z-index: 10;
-      cursor: pointer;
-      text-align: center;
-      padding: 20px;
-      box-sizing: border-box;
-    }
-    #loading {
-      margin-top: 20px;
-      font-size: 1em;
-      color: #ccc;
-    }
-    #retry-button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 1em;
-      cursor: pointer;
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -69,19 +36,6 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
-
-      // Overlay UI
-      const overlay = document.createElement("div");
-      overlay.id = "tap-overlay";
-      overlay.innerHTML = `
-        <div id="overlay-text">Tap to Start Video</div>
-        <div id="loading"></div>
-        <button id="retry-button">Retry</button>
-      `;
-      container.appendChild(overlay);
-      const retryButton = document.getElementById("retry-button");
-      const overlayText = document.getElementById("overlay-text");
-      const loadingText = document.getElementById("loading");
 
       // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
@@ -142,71 +96,51 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Step 1: Start video only
+      // Video start function
       const startVideo = async () => {
         try {
-          retryButton.style.display = 'none';
-          loadingText.textContent = "Starting video...";
-          
-          // Only HEVC + Alpha MP4 on Google Drive
           const driveVideo = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
           video.src = driveVideo;
           video.load();
           await video.play();
 
-          // Once video is running, set texture
           const videoTexture = new THREE.VideoTexture(video);
           videoTexture.needsUpdate = true;
           videoMaterial.map = videoTexture;
           videoMaterial.needsUpdate = true;
-
-          loadingText.textContent = "";
-          overlayText.textContent = "Tap to Start AR";
-
-          // Next tap will start AR
-          overlay.onclick = startAR;
         } catch (err) {
           console.error("Video start failed:", err);
-          loadingText.textContent = "Failed to start video";
-          retryButton.style.display = 'block';
         }
       };
 
-      // Step 2: Start AR
+      // Start AR function
       const startAR = async () => {
         try {
-          retryButton.style.display = 'none';
-          loadingText.textContent = "Starting AR...";
           await mindarThree.start();
-          overlay.style.display = 'none';
           renderer.setAnimationLoop(() => {
             renderer.render(scene, camera);
           });
         } catch (err) {
           console.error("AR start failed:", err);
-          loadingText.textContent = "Failed to start AR";
-          retryButton.style.display = 'block';
         }
       };
 
-      retryButton.addEventListener("click", () => {
-        overlay.onclick = startVideo;
-        overlayText.textContent = "Tap to Start Video";
-        loadingText.textContent = "";
-        retryButton.style.display = 'none';
-      });
-
-      // iOS: two taps, Desktop: one tap auto-start
+      // Mobile/iOS: auto-start video and AR
       if (isIOS()) {
-        overlay.onclick = startVideo;
+        await startVideo();
+        await startAR();
       } else {
-        try {
+        // Desktop: maintain overlay / tap logic if needed
+        const overlay = document.createElement("div");
+        overlay.id = "tap-overlay";
+        overlay.innerHTML = `<div>Tap to Start Video & AR</div>`;
+        container.appendChild(overlay);
+
+        overlay.onclick = async () => {
           await startVideo();
           await startAR();
-        } catch (err) {
-          console.log("Desktop autoplay blocked, waiting for interaction");
-          overlay.onclick = startVideo;
-        }
+          overlay.style.display = 'none';
+        };
       }
     });
   </script>
