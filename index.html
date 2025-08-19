@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AR Projection</title>
-  
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-  
   <style>
     html, body {
       margin: 0;
@@ -29,73 +27,68 @@
 </head>
 <body>
   <div id="container"></div>
-  
+
   <script>
-    // Patch getUserMedia to force HD camera constraints
-    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = (constraints) => {
-      if (constraints && constraints.video) {
-        if (typeof constraints.video === 'object') {
-          constraints.video = {
-            ...constraints.video,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        } else {
-          constraints.video = {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'environment',
-          };
-        }
-      }
-      return origGetUserMedia(constraints);
-    };
-
-    // Prevent pinch-zoom gestures
-    window.addEventListener('wheel', (e) => {
-      if (e.ctrlKey) e.preventDefault();
-    }, { passive: false });
-
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
-      window.addEventListener(event, e => e.preventDefault())
-    );
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
 
     document.addEventListener("DOMContentLoaded", async () => {
+      const container = document.querySelector("#container");
+
+      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#container"),
+        container: container,
         imageTargetSrc: "./maintarget.mind",
         filterMinCF: 0.05,
         filterBeta: 0.15,
+        uiLoading: "no",
+        uiScanning: "no",
+        uiError: "no"
       });
-
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
-      let pngPlane = null;
 
-      // Load PNG texture
+      // PNG overlay above card
       const textureLoader = new THREE.TextureLoader();
       textureLoader.load("circuitdisplay.png", (texture) => {
         texture.flipY = false;
-
         const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
         const pngMaterial = new THREE.MeshBasicMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
         });
-
-        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
-        pngPlane.rotation.set(
-          -Math.PI / 2 - THREE.MathUtils.degToRad(45), // Tilt backward 45 degrees
-          0,
-          0
-        );
-
+        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0.1, 0.31);
+        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
         anchor.group.add(pngPlane);
       });
+
+      // Video element
+      const video = document.createElement('video');
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
+      document.body.appendChild(video);
+
+      // Video material
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        transparent: true,
+        alphaTest: 0.05,
+        side: THREE.DoubleSide,
+      });
+      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+      videoPlane.position.set(0, 0, 0);
+      anchor.group.add(videoPlane);
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -103,13 +96,66 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      await mindarThree.start();
+      // Video start function
+      const startVideo = async () => {
+        try {
+          let videoSrc;
+          if (isIOS()) {
+            // iOS Safari uses HEVC + Alpha
+            videoSrc = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
+          } else {
+            // Desktop uses previous WebM/MP4 file
+            videoSrc = "./circuit_3.webm"; // replace with your working desktop file
+          }
+          video.src = videoSrc;
+          video.load();
+          await video.play();
 
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
+          const videoTexture = new THREE.VideoTexture(video);
+          videoTexture.needsUpdate = true;
+          videoMaterial.map = videoTexture;
+          videoMaterial.needsUpdate = true;
+        } catch (err) {
+          console.error("Video start failed:", err);
+        }
+      };
+
+      // Start AR function
+      const startAR = async () => {
+        try {
+          await mindarThree.start();
+          renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+          });
+        } catch (err) {
+          console.error("AR start failed:", err);
+        }
+      };
+
+      // Mobile/iOS: invisible tap to start
+      if (isIOS()) {
+        const touchLayer = document.createElement("div");
+        touchLayer.style.position = "absolute";
+        touchLayer.style.top = "0";
+        touchLayer.style.left = "0";
+        touchLayer.style.width = "100%";
+        touchLayer.style.height = "100%";
+        touchLayer.style.zIndex = "9999";
+        touchLayer.style.background = "transparent";
+        document.body.appendChild(touchLayer);
+
+        touchLayer.addEventListener("touchstart", async () => {
+          touchLayer.remove();
+          await startVideo();
+          await startAR();
+        }, { once: true });
+
+      } else {
+        // Desktop: auto-start video & AR
+        await startVideo();
+        await startAR();
+      }
     });
   </script>
 </body>
 </html>
-
