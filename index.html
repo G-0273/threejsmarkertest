@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>AR Angled PNG (Forced Camera Quality)</title>
+  <title>AR Angled PNG</title>
   <style>
     body, html {
       margin: 0;
@@ -32,14 +32,10 @@
   <div id="ar-container"></div>
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
-      // Init MindAR with forced camera quality
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./targets.mind",
         maxTrack: 1,
-        uiScanning: true,
-        uiLoading: "no",
-        // force high camera quality
         videoSettings: {
           facingMode: "environment",
           width: { ideal: 1920 },
@@ -49,54 +45,37 @@
 
       const { renderer, scene, camera } = mindarThree;
 
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      scene.add(new THREE.AmbientLight(0xffffff, 1));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight.position.set(0, 1, 1);
+      scene.add(dirLight);
 
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-      scene.add(ambientLight);
-
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      directionalLight.position.set(0, 1, 1);
-      scene.add(directionalLight);
-
-      // Anchor
       const anchor = mindarThree.addAnchor(0);
 
-      // --- Angled PNG ---
-      const loader = new THREE.TextureLoader();
-      const texture = loader.load("./circuitdisplay.png");
+      const texture = new THREE.TextureLoader().load("./circuitdisplay.png");
       const plane = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({ map: texture, transparent: true })
       );
-
-      plane.rotation.x = -0.3;  // tilt forward
-      plane.rotation.y = 0.2;   // slight sideways angle
-      plane.position.y = 0.5;   // float above card
+      plane.rotation.x = -0.3;
+      plane.rotation.y = 0.2;
+      plane.position.y = 0.5;
       plane.material.opacity = 0;
       anchor.group.add(plane);
 
-      // Fade-in effect
-      let fadeProgress = 0;
-      anchor.onTargetFound = () => { fadeProgress = 0; };
+      let fade = 0;
+      anchor.onTargetFound = () => { fade = 0; };
       anchor.onTargetLost = () => { plane.material.opacity = 0; };
 
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (fadeProgress < 1) {
-          fadeProgress += 0.02;
-          plane.material.opacity = fadeProgress;
+        if (fade < 1) {
+          fade += 0.02;
+          plane.material.opacity = fade;
         }
         renderer.render(scene, camera);
       });
-
-      // Disable pinch zoom on mobile
-      const canvas = renderer.domElement;
-      canvas.addEventListener("touchmove", (e) => {
-        if (e.touches.length > 1) e.preventDefault();
-      }, { passive: false });
     });
   </script>
 </body>
