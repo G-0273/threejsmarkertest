@@ -31,26 +31,47 @@
   <div id="container"></div>
   
   <script>
-    // Prevent pinch-zoom and other gestures
+    // Patch getUserMedia to force HD camera constraints
+    const origGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      if (constraints && constraints.video) {
+        if (typeof constraints.video === 'object') {
+          constraints.video = {
+            ...constraints.video,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        } else {
+          constraints.video = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'environment',
+          };
+        }
+      }
+      return origGetUserMedia(constraints);
+    };
+
+    // Prevent pinch-zoom gestures
     window.addEventListener('wheel', (e) => {
       if (e.ctrlKey) e.preventDefault();
     }, { passive: false });
 
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event => 
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event =>
       window.addEventListener(event, e => e.preventDefault())
     );
 
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#container"),
-        imageTargetSrc: "./targets.mind",
-        filterMinCF: 0.2,
-        filterBeta: 0.01,
+        imageTargetSrc: "./targets (1).mind",
+        filterMinCF: 0.05,
+        filterBeta: 0.15,
       });
 
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
-
       let pngPlane = null;
 
       // Load PNG texture
@@ -66,8 +87,12 @@
         });
 
         pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0, 0); // Slightly above the card
-        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Upright
+        pngPlane.position.set(0, 0.1, 0.3); // Slightly above the card
+        pngPlane.rotation.set(
+          -Math.PI / 2 - THREE.MathUtils.degToRad(45), // Tilt backward 45 degrees
+          0,
+          0
+        );
 
         anchor.group.add(pngPlane);
       });
@@ -81,14 +106,6 @@
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (pngPlane) {
-          const camPos = camera.position.clone();
-          anchor.group.worldToLocal(camPos);
-
-          // Flip the angle to match physical camera movement
-          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
-          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // Rotate only around Y
-        }
         renderer.render(scene, camera);
       });
     });
