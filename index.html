@@ -96,6 +96,10 @@
           videoTexture.needsUpdate = true;
           videoMaterial.map = videoTexture;
           videoMaterial.needsUpdate = true;
+
+          // Flip vertically to match previous PNG
+          videoPlane.scale.y = -1;
+
         } catch (err) {
           console.error("Video start failed:", err);
         }
