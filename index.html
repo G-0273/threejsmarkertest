@@ -37,7 +37,6 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
-      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -49,22 +48,6 @@
       });
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
-
-      // PNG overlay above card
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load("circuitdisplay.png", (texture) => {
-        texture.flipY = false;
-        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const pngMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-        });
-        const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-        pngPlane.position.set(0, 0.1, 0.31);
-        pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(pngPlane);
-      });
 
       // Video element
       const video = document.createElement('video');
@@ -79,15 +62,16 @@
       video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
-      // Video material
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+      // Video material at PNG position/angle
+      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
       const videoMaterial = new THREE.MeshBasicMaterial({
         transparent: true,
-        alphaTest: 0.05,
         side: THREE.DoubleSide,
+        alphaTest: 0.05
       });
       const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0, 0);
+      videoPlane.position.set(0, 0.1, 0.31); // same as PNG
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // same angle
       anchor.group.add(videoPlane);
 
       // Lighting
@@ -96,16 +80,13 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Video start function
       const startVideo = async () => {
         try {
           let videoSrc;
           if (isIOS()) {
-            // iOS Safari uses HEVC + Alpha
             videoSrc = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
           } else {
-            // Desktop uses previous WebM/MP4 file
-            videoSrc = "./circuit_3.webm"; // replace with your working desktop file
+            videoSrc = "./circuit_3.webm"; // desktop video
           }
           video.src = videoSrc;
           video.load();
@@ -120,7 +101,6 @@
         }
       };
 
-      // Start AR function
       const startAR = async () => {
         try {
           await mindarThree.start();
@@ -132,7 +112,6 @@
         }
       };
 
-      // Mobile/iOS: invisible tap to start
       if (isIOS()) {
         const touchLayer = document.createElement("div");
         touchLayer.style.position = "absolute";
@@ -149,9 +128,8 @@
           await startVideo();
           await startAR();
         }, { once: true });
-
       } else {
-        // Desktop: auto-start video & AR
+        // Desktop auto-start
         await startVideo();
         await startAR();
       }
