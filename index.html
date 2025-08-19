@@ -30,7 +30,8 @@
 
   <script>
     function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
@@ -49,63 +50,52 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Desktop video plane instead of PNG
-      let videoPlane;
-      if (!isIOS()) {
-        const video = document.createElement('video');
-        video.loop = true;
-        video.muted = true;
-        video.playsInline = true;
-        video.setAttribute('webkit-playsinline', '');
-        video.setAttribute('playsinline', '');
-        video.style.position = 'absolute';
-        video.style.opacity = '0';
-        video.style.zIndex = '-1000';
-        video.style.pointerEvents = 'none';
-        document.body.appendChild(video);
+      // Common plane geometry
+      const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-        const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-        const videoMaterial = new THREE.MeshBasicMaterial({
-          transparent: true,
-          side: THREE.DoubleSide,
-          alphaTest: 0.05
-        });
+      // Desktop / iOS handling
+      const video = document.createElement('video');
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
+      document.body.appendChild(video);
 
-        videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-        videoPlane.position.set(0, 0.1, 0.31);
-        videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-        anchor.group.add(videoPlane);
-
-        // Start desktop video
-        const videoSrc = "./circuit_3.webm"; // your desktop video file
-        video.src = videoSrc;
-        video.load();
-        await video.play();
-
-        const videoTexture = new THREE.VideoTexture(video);
-        videoTexture.needsUpdate = true;
-        videoMaterial.map = videoTexture;
-        videoMaterial.needsUpdate = true;
-
-        // Flip vertically to match previous PNG orientation
-        videoPlane.scale.y = -1;
+      let videoSrc;
+      if (isIOS()) {
+        videoSrc = "./newcircuitalpha1.mov"; // iOS alpha mov
       } else {
-        // iOS: keep PNG plane exactly as before
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load("circuitdisplay.png", (texture) => {
-          texture.flipY = false;
-          const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
-          const pngMaterial = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide,
-          });
-          const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
-          pngPlane.position.set(0, 0.1, 0.31);
-          pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-          anchor.group.add(pngPlane);
-        });
+        videoSrc = "./circuit_3.webm"; // desktop/webm
       }
+
+      const videoMaterial = new THREE.MeshBasicMaterial({
+        transparent: true,
+        side: THREE.DoubleSide,
+        alphaTest: 0.05
+      });
+
+      const videoPlane = new THREE.Mesh(planeGeometry, videoMaterial);
+      videoPlane.position.set(0, 0.1, 0.31);
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      anchor.group.add(videoPlane);
+
+      // Start video
+      video.src = videoSrc;
+      video.load();
+      await video.play();
+
+      const videoTexture = new THREE.VideoTexture(video);
+      videoTexture.needsUpdate = true;
+      videoMaterial.map = videoTexture;
+      videoMaterial.needsUpdate = true;
+
+      // Flip vertically to match old PNG orientation
+      videoPlane.scale.y = -1;
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -122,4 +112,3 @@
   </script>
 </body>
 </html>
-
