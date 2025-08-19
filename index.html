@@ -2,77 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>AR Angled PNG</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR Projection</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+  
   <style>
-    body, html {
+    html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      width: 100%;
-      height: 100%;
-      background: black;
+      touch-action: none;
     }
-    #ar-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
     }
     canvas {
-      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-three.prod.js"></script>
 </head>
 <body>
-  <div id="ar-container"></div>
+  <div id="container"></div>
+  
   <script>
+    // Prevent pinch-zoom and other gestures
+    window.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(event => 
+      window.addEventListener(event, e => e.preventDefault())
+    );
+
     document.addEventListener("DOMContentLoaded", async () => {
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-        container: document.querySelector("#ar-container"),
+        container: document.querySelector("#container"),
         imageTargetSrc: "./targets.mind",
-        maxTrack: 1,
-        videoSettings: {
-          facingMode: "environment",
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
+        filterMinCF: 0.2,
+        filterBeta: 0.01,
       });
 
       const { renderer, scene, camera } = mindarThree;
-
-      scene.add(new THREE.AmbientLight(0xffffff, 1));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(0, 1, 1);
-      scene.add(dirLight);
-
       const anchor = mindarThree.addAnchor(0);
 
-      const texture = new THREE.TextureLoader().load("./circuitdisplay.png");
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(1, 1),
-        new THREE.MeshBasicMaterial({ map: texture, transparent: true })
-      );
-      plane.rotation.x = -0.3;
-      plane.rotation.y = 0.2;
-      plane.position.y = 0.5;
-      plane.material.opacity = 0;
-      anchor.group.add(plane);
+      let pngPlane = null;
 
-      let fade = 0;
-      anchor.onTargetFound = () => { fade = 0; };
-      anchor.onTargetLost = () => { plane.material.opacity = 0; };
+      // Load PNG texture
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load("circuitdisplay.png", (texture) => {
+        texture.flipY = false;
+
+        const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const pngMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide,
+        });
+
+        pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+        pngPlane.position.set(0, 0, 0); // Slightly above the card
+        pngPlane.rotation.set(-Math.PI / 2, 0, 0); // Upright
+
+        anchor.group.add(pngPlane);
+      });
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 3);
+      scene.add(dirLight);
 
       await mindarThree.start();
 
       renderer.setAnimationLoop(() => {
-        if (fade < 1) {
-          fade += 0.02;
-          plane.material.opacity = fade;
+        if (pngPlane) {
+          const camPos = camera.position.clone();
+          anchor.group.worldToLocal(camPos);
+
+          // Flip the angle to match physical camera movement
+          const angle = -Math.atan2(camPos.x - pngPlane.position.x, camPos.z - pngPlane.position.z);
+          pngPlane.rotation.set(-Math.PI / 2, angle, 0); // Rotate only around Y
         }
         renderer.render(scene, camera);
       });
