@@ -30,13 +30,13 @@
 
   <script>
     function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     }
 
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
+      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -49,30 +49,63 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Video element
-      const video = document.createElement('video');
-      video.loop = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.setAttribute('webkit-playsinline', '');
-      video.setAttribute('playsinline', '');
-      video.style.position = 'absolute';
-      video.style.opacity = '0';
-      video.style.zIndex = '-1000';
-      video.style.pointerEvents = 'none';
-      document.body.appendChild(video);
+      // Desktop video plane instead of PNG
+      let videoPlane;
+      if (!isIOS()) {
+        const video = document.createElement('video');
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('webkit-playsinline', '');
+        video.setAttribute('playsinline', '');
+        video.style.position = 'absolute';
+        video.style.opacity = '0';
+        video.style.zIndex = '-1000';
+        video.style.pointerEvents = 'none';
+        document.body.appendChild(video);
 
-      // Video material at PNG position/angle
-      const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
-      const videoMaterial = new THREE.MeshBasicMaterial({
-        transparent: true,
-        side: THREE.DoubleSide,
-        alphaTest: 0.05
-      });
-      const videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.1, 0.31); // same as PNG
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0); // same angle
-      anchor.group.add(videoPlane);
+        const videoGeometry = new THREE.PlaneGeometry(1.5, 1);
+        const videoMaterial = new THREE.MeshBasicMaterial({
+          transparent: true,
+          side: THREE.DoubleSide,
+          alphaTest: 0.05
+        });
+
+        videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+        videoPlane.position.set(0, 0.1, 0.31);
+        videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+        anchor.group.add(videoPlane);
+
+        // Start desktop video
+        const videoSrc = "./circuit_3.webm"; // your desktop video file
+        video.src = videoSrc;
+        video.load();
+        await video.play();
+
+        const videoTexture = new THREE.VideoTexture(video);
+        videoTexture.needsUpdate = true;
+        videoMaterial.map = videoTexture;
+        videoMaterial.needsUpdate = true;
+
+        // Flip vertically to match previous PNG orientation
+        videoPlane.scale.y = -1;
+      } else {
+        // iOS: keep PNG plane exactly as before
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load("circuitdisplay.png", (texture) => {
+          texture.flipY = false;
+          const pngGeometry = new THREE.PlaneGeometry(1.5, 1);
+          const pngMaterial = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide,
+          });
+          const pngPlane = new THREE.Mesh(pngGeometry, pngMaterial);
+          pngPlane.position.set(0, 0.1, 0.31);
+          pngPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+          anchor.group.add(pngPlane);
+        });
+      }
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -80,64 +113,13 @@
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      const startVideo = async () => {
-        try {
-          let videoSrc;
-          if (isIOS()) {
-            videoSrc = "https://drive.google.com/uc?export=download&id=1j2CuUyOVDEEYdRQ8wLDJRHkKlzUfYNIi";
-          } else {
-            videoSrc = "./circuit_3.webm"; // desktop video
-          }
-          video.src = videoSrc;
-          video.load();
-          await video.play();
-
-          const videoTexture = new THREE.VideoTexture(video);
-          videoTexture.needsUpdate = true;
-          videoMaterial.map = videoTexture;
-          videoMaterial.needsUpdate = true;
-
-          // Flip vertically to match previous PNG
-          videoPlane.scale.y = -1;
-
-        } catch (err) {
-          console.error("Video start failed:", err);
-        }
-      };
-
-      const startAR = async () => {
-        try {
-          await mindarThree.start();
-          renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-          });
-        } catch (err) {
-          console.error("AR start failed:", err);
-        }
-      };
-
-      if (isIOS()) {
-        const touchLayer = document.createElement("div");
-        touchLayer.style.position = "absolute";
-        touchLayer.style.top = "0";
-        touchLayer.style.left = "0";
-        touchLayer.style.width = "100%";
-        touchLayer.style.height = "100%";
-        touchLayer.style.zIndex = "9999";
-        touchLayer.style.background = "transparent";
-        document.body.appendChild(touchLayer);
-
-        touchLayer.addEventListener("touchstart", async () => {
-          touchLayer.remove();
-          await startVideo();
-          await startAR();
-        }, { once: true });
-      } else {
-        // Desktop auto-start
-        await startVideo();
-        await startAR();
-      }
+      // Start AR
+      await mindarThree.start();
+      renderer.setAnimationLoop(() => {
+        renderer.render(scene, camera);
+      });
     });
   </script>
 </body>
 </html>
+
