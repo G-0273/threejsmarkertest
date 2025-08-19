@@ -25,6 +25,7 @@
       display: block;
     }
   </style>
+  <!-- Load Three.js + MindAR in non-module style -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.0/dist/mindar-image-three.prod.js"></script>
 </head>
@@ -32,6 +33,7 @@
   <div id="ar-container"></div>
   <script>
     document.addEventListener("DOMContentLoaded", async () => {
+      // Init MindARThree
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: document.querySelector("#ar-container"),
         imageTargetSrc: "./targets.mind",
@@ -40,6 +42,7 @@
 
       const { renderer, scene, camera } = mindarThree;
 
+      // Fix renderer
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.outputEncoding = THREE.sRGBEncoding;
 
