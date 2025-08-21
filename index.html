@@ -37,7 +37,6 @@
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
-      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -50,10 +49,8 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Plane
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-      // Video element
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
@@ -66,9 +63,7 @@
       video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
-      // Pick your green/blue screen video here
-      let videoSrc = "./greenscreencircuit.mp4";
-      video.src = videoSrc;
+      video.src = "./greenscreencircuit.mp4";
       video.load();
       await video.play();
 
@@ -77,19 +72,15 @@
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBAFormat;
 
-      // Chroma key shader (for green screen; change keyColor if using blue)
-      const keyColor = new THREE.Color(0x00ff00); // green
-      const similarity = 0.4;  // adjust how close colors need to be
-      const smoothness = 0.1;  // edge smoothing
-
+      // Improved chroma key: tighter green removal
       const chromaKeyMaterial = new THREE.ShaderMaterial({
         transparent: true,
         side: THREE.DoubleSide,
         uniforms: {
           map: { value: videoTexture },
-          keyColor: { value: keyColor },
-          similarity: { value: similarity },
-          smoothness: { value: smoothness }
+          keyColor: { value: new THREE.Color(0x00ff00) }, // green
+          similarity: { value: 0.25 }, // lower = stricter green match
+          smoothness: { value: 0.05 } // lower = sharper edges
         },
         vertexShader: `
           varying vec2 vUv;
@@ -106,16 +97,23 @@
           varying vec2 vUv;
           void main() {
             vec4 color = texture2D(map, vUv);
-            float Y1 = 0.2989*color.r + 0.5866*color.g + 0.1145*color.b;
-            float Cr1 = color.r - Y1;
-            float Cb1 = color.b - Y1;
 
-            float Y2 = 0.2989*keyColor.r + 0.5866*keyColor.g + 0.1145*keyColor.b;
-            float Cr2 = keyColor.r - Y2;
-            float Cb2 = keyColor.b - Y2;
+            // Convert to YCbCr for better color distance
+            float Yc = 0.299*color.r + 0.587*color.g + 0.114*color.b;
+            float Cb = color.b - Yc;
+            float Cr = color.r - Yc;
 
-            float blend = smoothstep(similarity, similarity + smoothness, distance(vec2(Cr1, Cb1), vec2(Cr2, Cb2)));
-            gl_FragColor = vec4(color.rgb, color.a * blend);
+            float Yk = 0.299*keyColor.r + 0.587*keyColor.g + 0.114*keyColor.b;
+            float Cbk = keyColor.b - Yk;
+            float Crk = keyColor.r - Yk;
+
+            float d = distance(vec2(Cr, Cb), vec2(Crk, Cbk));
+            float alpha = 1.0 - smoothstep(similarity, similarity + smoothness, d);
+
+            // Force fully transparent for pixels extremely close to green
+            if(d < 0.01) alpha = 0.0;
+
+            gl_FragColor = vec4(color.rgb, alpha);
           }
         `
       });
@@ -123,16 +121,14 @@
       const videoPlane = new THREE.Mesh(planeGeometry, chromaKeyMaterial);
       videoPlane.position.set(0, 0.1, 0.31);
       videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-      videoPlane.scale.y = -1; // flip
+      videoPlane.scale.y = -1;
       anchor.group.add(videoPlane);
 
-      // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
       dirLight.position.set(1, 2, 3);
       scene.add(dirLight);
 
-      // Start AR
       await mindarThree.start();
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
