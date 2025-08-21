@@ -3,31 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection with Chroma Key</title>
+  <title>AR Projection with Advanced Chroma Key</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      touch-action: none;
-    }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-    }
+    html, body { margin:0; padding:0; overflow:hidden; touch-action:none; }
+    #container { width:100vw; height:100vh; position:relative; }
+    canvas { width:100% !important; height:100% !important; object-fit:cover; }
   </style>
 </head>
 <body>
   <div id="container"></div>
-
   <script>
     function isIOS() {
       return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
@@ -72,21 +58,20 @@
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBAFormat;
 
-      // Improved chroma key: tighter green removal
       const chromaKeyMaterial = new THREE.ShaderMaterial({
         transparent: true,
         side: THREE.DoubleSide,
         uniforms: {
           map: { value: videoTexture },
           keyColor: { value: new THREE.Color(0x00ff00) }, // green
-          similarity: { value: 0.25 }, // lower = stricter green match
-          smoothness: { value: 0.05 } // lower = sharper edges
+          similarity: { value: 0.25 },
+          smoothness: { value: 0.05 }
         },
         vertexShader: `
           varying vec2 vUv;
           void main() {
             vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
           }
         `,
         fragmentShader: `
@@ -95,23 +80,29 @@
           uniform float similarity;
           uniform float smoothness;
           varying vec2 vUv;
+
           void main() {
             vec4 color = texture2D(map, vUv);
 
-            // Convert to YCbCr for better color distance
-            float Yc = 0.299*color.r + 0.587*color.g + 0.114*color.b;
-            float Cb = color.b - Yc;
-            float Cr = color.r - Yc;
+            // convert to YCbCr
+            float Y = 0.299*color.r + 0.587*color.g + 0.114*color.b;
+            float Cb = color.b - Y;
+            float Cr = color.r - Y;
 
             float Yk = 0.299*keyColor.r + 0.587*keyColor.g + 0.114*keyColor.b;
             float Cbk = keyColor.b - Yk;
             float Crk = keyColor.r - Yk;
 
-            float d = distance(vec2(Cr, Cb), vec2(Crk, Cbk));
-            float alpha = 1.0 - smoothstep(similarity, similarity + smoothness, d);
+            // distance with stronger Cr/Cb weight
+            float dist = distance(vec2(Cr*1.2, Cb*1.2), vec2(Crk*1.2, Cbk*1.2));
 
-            // Force fully transparent for pixels extremely close to green
-            if(d < 0.01) alpha = 0.0;
+            float alpha = 1.0 - smoothstep(similarity, similarity + smoothness, dist);
+
+            // Spill suppression
+            float greenDiff = color.g - max(color.r, color.b);
+            if (greenDiff > 0.05) {
+              alpha *= 1.0 - greenDiff*2.0;
+            }
 
             gl_FragColor = vec4(color.rgb, alpha);
           }
@@ -120,19 +111,17 @@
 
       const videoPlane = new THREE.Mesh(planeGeometry, chromaKeyMaterial);
       videoPlane.position.set(0, 0.1, 0.31);
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      videoPlane.rotation.set(-Math.PI/2 - THREE.MathUtils.degToRad(45),0,0);
       videoPlane.scale.y = -1;
       anchor.group.add(videoPlane);
 
-      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(1, 2, 3);
+      scene.add(new THREE.AmbientLight(0xffffff,0.6));
+      const dirLight = new THREE.DirectionalLight(0xffffff,0.8);
+      dirLight.position.set(1,2,3);
       scene.add(dirLight);
 
       await mindarThree.start();
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
+      renderer.setAnimationLoop(()=>{ renderer.render(scene,camera); });
     });
   </script>
 </body>
