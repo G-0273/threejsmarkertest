@@ -29,11 +29,6 @@
   <div id="container"></div>
 
   <script>
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
-
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
@@ -53,7 +48,7 @@
       // Common plane geometry
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-      // Desktop / iOS handling
+      // Video element
       const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
@@ -66,36 +61,62 @@
       video.style.pointerEvents = 'none';
       document.body.appendChild(video);
 
-      let videoSrc;
-      if (isIOS()) {
-        videoSrc = "./newcircuitalpha1.mov"; // iOS alpha mov
-      } else {
-        videoSrc = "./circuit_3.webm"; // desktop/webm
-      }
-
-      const videoMaterial = new THREE.MeshBasicMaterial({
-        transparent: true,
-        side: THREE.DoubleSide,
-        alphaTest: 0.05
-      });
-
-      const videoPlane = new THREE.Mesh(planeGeometry, videoMaterial);
-      videoPlane.position.set(0, 0.1, 0.31);
-      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-      anchor.group.add(videoPlane);
-
-      // Start video
-      video.src = videoSrc;
+      // Always use green-screen video
+      video.src = "./greenscreencircuit.mp4";
       video.load();
       await video.play();
 
       const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.needsUpdate = true;
-      videoMaterial.map = videoTexture;
-      videoMaterial.needsUpdate = true;
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.format = THREE.RGBAFormat;
 
-      // Flip vertically to match old PNG orientation
-      videoPlane.scale.y = -1;
+      // Simple chroma key shader (green removal)
+      const chromaKeyMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+          texture: { value: videoTexture },
+          keyColor: { value: new THREE.Color(0x00ff00) }, // green
+          similarity: { value: 0.35 },  // tolerance for matching
+          smoothness: { value: 0.10 },  // softness on edges
+        },
+        vertexShader: `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform sampler2D texture;
+          uniform vec3 keyColor;
+          uniform float similarity;
+          uniform float smoothness;
+          varying vec2 vUv;
+
+          void main() {
+            vec4 videoColor = texture2D(texture, vUv);
+
+            float Y1 = 0.2989 * keyColor.r + 0.5866 * keyColor.g + 0.1145 * keyColor.b;
+            float Cr1 = 0.7132 * (keyColor.r - Y1);
+            float Cb1 = 0.5647 * (keyColor.b - Y1);
+
+            float Y2 = 0.2989 * videoColor.r + 0.5866 * videoColor.g + 0.1145 * videoColor.b;
+            float Cr2 = 0.7132 * (videoColor.r - Y2);
+            float Cb2 = 0.5647 * (videoColor.b - Y2);
+
+            float blendValue = smoothstep(similarity, similarity + smoothness, distance(vec2(Cr1, Cb1), vec2(Cr2, Cb2)));
+            gl_FragColor = vec4(videoColor.rgb, videoColor.a * blendValue);
+          }
+        `,
+        transparent: true,
+        side: THREE.DoubleSide
+      });
+
+      const videoPlane = new THREE.Mesh(planeGeometry, chromaKeyMaterial);
+      videoPlane.position.set(0, 0.1, 0.31);
+      videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
+      videoPlane.scale.y = -1; // flip vertically like before
+      anchor.group.add(videoPlane);
 
       // Lighting
       scene.add(new THREE.AmbientLight(0xffffff, 0.6));
