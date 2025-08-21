@@ -3,22 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection - Chroma Key</title>
+  <title>AR Projection - Green Screen Key</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    html, body { margin: 0; padding: 0; overflow: hidden; touch-action: none; background: black; }
-    #container { width: 100vw; height: 100vh; position: relative; }
-    canvas { width: 100% !important; height: 100% !important; object-fit: cover; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      touch-action: none;
+      background: black;
+    }
+    #container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: cover;
+    }
+    video {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
 
   <script>
+    function isIOS() {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
+      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -31,15 +54,16 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
+      // Plane
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
       // Video element
       const video = document.createElement("video");
-      video.src = "./greenscreencircuit.mp4"; // use this file for all devices
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("webkit-playsinline", "");
+      video.src = "./greenscreencircuit.mov"; // your greenscreen file
       document.body.appendChild(video);
       await video.play();
 
@@ -54,9 +78,9 @@
         side: THREE.DoubleSide,
         uniforms: {
           map: { value: videoTexture },
-          keyColor: { value: new THREE.Color(0x00ff00) }, // green
-          similarity: { value: 0.35 },
-          smoothness: { value: 0.1 }
+          keyColor: { value: new THREE.Color(0x00ff00) }, // pure green
+          similarity: { value: 0.35 }, // how close to green gets removed
+          smoothness: { value: 0.1 },  // feather edges
         },
         vertexShader: `
           varying vec2 vUv;
@@ -73,19 +97,14 @@
           varying vec2 vUv;
           void main() {
             vec4 color = texture2D(map, vUv);
-
-            float Y = 0.299*color.r + 0.587*color.g + 0.114*color.b;
-            float Cb = color.b - Y;
-            float Cr = color.r - Y;
-
-            float Yk = 0.299*keyColor.r + 0.587*keyColor.g + 0.114*keyColor.b;
-            float Cbk = keyColor.b - Yk;
-            float Crk = keyColor.r - Yk;
-
-            float d = distance(vec2(Cr, Cb), vec2(Crk, Cbk));
-            float alpha = 1.0 - smoothstep(similarity, similarity + smoothness, d);
-
-            gl_FragColor = vec4(color.rgb, alpha);
+            float Y1 = 0.2989*color.r + 0.5866*color.g + 0.1145*color.b;
+            float Cr1 = 0.7132*(color.r - Y1);
+            float Cb1 = 0.5647*(color.b - Y1);
+            float Y2 = 0.2989*keyColor.r + 0.5866*keyColor.g + 0.1145*keyColor.b;
+            float Cr2 = 0.7132*(keyColor.r - Y2);
+            float Cb2 = 0.5647*(keyColor.b - Y2);
+            float blend = smoothstep(similarity, similarity + smoothness, distance(vec2(Cr1, Cb1), vec2(Cr2, Cb2)));
+            gl_FragColor = vec4(color.rgb, blend);
           }
         `
       });
