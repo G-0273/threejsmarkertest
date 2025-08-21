@@ -3,62 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection - Adjustable Chroma Key</title>
+  <title>AR Projection - Chroma Key</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      touch-action: none;
-      background: black;
-    }
-    #container {
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
-    canvas {
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: cover;
-    }
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 100;
-      background: rgba(0,0,0,0.5);
-      padding: 10px;
-      border-radius: 8px;
-      color: white;
-      font-family: sans-serif;
-    }
-    input[type=range] {
-      width: 150px;
-    }
+    html, body { margin: 0; padding: 0; overflow: hidden; touch-action: none; background: black; }
+    #container { width: 100vw; height: 100vh; position: relative; }
+    canvas { width: 100% !important; height: 100% !important; object-fit: cover; }
   </style>
 </head>
 <body>
   <div id="container"></div>
-  <div id="controls">
-    <label>Similarity: <span id="simVal">0.35</span></label><br>
-    <input type="range" id="similarity" min="0" max="1" step="0.01" value="0.35"><br>
-    <label>Smoothness: <span id="smoothVal">0.1</span></label><br>
-    <input type="range" id="smoothness" min="0" max="0.5" step="0.01" value="0.1">
-  </div>
 
   <script>
-    function isIOS() {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }
-
     document.addEventListener("DOMContentLoaded", async () => {
       const container = document.querySelector("#container");
 
-      // MindAR setup
       const mindarThree = new window.MINDAR.IMAGE.MindARThree({
         container: container,
         imageTargetSrc: "./maintarget.mind",
@@ -71,16 +31,15 @@
       const { renderer, scene, camera } = mindarThree;
       const anchor = mindarThree.addAnchor(0);
 
-      // Plane
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-      // Video
+      // Video element
       const video = document.createElement("video");
+      video.src = "./greenscreencircuit.mp4"; // use this file for all devices
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("webkit-playsinline", "");
-      video.src = "./greenscreencircuit.mov"; // your greenscreen video
       document.body.appendChild(video);
       await video.play();
 
@@ -89,7 +48,7 @@
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.format = THREE.RGBFormat;
 
-      // Shader material with chroma key
+      // Chroma key shader
       const chromaKeyMaterial = new THREE.ShaderMaterial({
         transparent: true,
         side: THREE.DoubleSide,
@@ -147,22 +106,6 @@
       await mindarThree.start();
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
-      });
-
-      // Controls
-      const similaritySlider = document.getElementById("similarity");
-      const smoothnessSlider = document.getElementById("smoothness");
-      const simVal = document.getElementById("simVal");
-      const smoothVal = document.getElementById("smoothVal");
-
-      similaritySlider.addEventListener("input", (e) => {
-        chromaKeyMaterial.uniforms.similarity.value = parseFloat(e.target.value);
-        simVal.textContent = e.target.value;
-      });
-
-      smoothnessSlider.addEventListener("input", (e) => {
-        chromaKeyMaterial.uniforms.smoothness.value = parseFloat(e.target.value);
-        smoothVal.textContent = e.target.value;
       });
     });
   </script>
