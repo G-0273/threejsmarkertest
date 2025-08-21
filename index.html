@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection with Chroma Key</title>
+  <title>AR Projection - Adjustable Chroma Key</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -12,6 +12,7 @@
       padding: 0;
       overflow: hidden;
       touch-action: none;
+      background: black;
     }
     #container {
       width: 100vw;
@@ -23,10 +24,30 @@
       height: 100% !important;
       object-fit: cover;
     }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 8px;
+      color: white;
+      font-family: sans-serif;
+    }
+    input[type=range] {
+      width: 150px;
+    }
   </style>
 </head>
 <body>
   <div id="container"></div>
+  <div id="controls">
+    <label>Similarity: <span id="simVal">0.35</span></label><br>
+    <input type="range" id="similarity" min="0" max="1" step="0.01" value="0.35"><br>
+    <label>Smoothness: <span id="smoothVal">0.1</span></label><br>
+    <input type="range" id="smoothness" min="0" max="0.5" step="0.01" value="0.1">
+  </div>
 
   <script>
     function isIOS() {
@@ -53,43 +74,30 @@
       // Plane
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
-      // Video element
-      const video = document.createElement('video');
+      // Video
+      const video = document.createElement("video");
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      video.setAttribute('webkit-playsinline', '');
-      video.setAttribute('playsinline', '');
-      video.style.position = 'absolute';
-      video.style.opacity = '0';
-      video.style.zIndex = '-1000';
-      video.style.pointerEvents = 'none';
+      video.setAttribute("webkit-playsinline", "");
+      video.src = "./greenscreencircuit.mov"; // your greenscreen video
       document.body.appendChild(video);
-
-      // Pick your green/blue screen video here
-      let videoSrc = "./greenscreencircuit.mp4";
-      video.src = videoSrc;
-      video.load();
       await video.play();
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBAFormat;
+      videoTexture.format = THREE.RGBFormat;
 
-      // Chroma key shader (for green screen; change keyColor if using blue)
-      const keyColor = new THREE.Color(0x00ff00); // green
-      const similarity = 0.4;  // adjust how close colors need to be
-      const smoothness = 0.1;  // edge smoothing
-
+      // Shader material with chroma key
       const chromaKeyMaterial = new THREE.ShaderMaterial({
         transparent: true,
         side: THREE.DoubleSide,
         uniforms: {
           map: { value: videoTexture },
-          keyColor: { value: keyColor },
-          similarity: { value: similarity },
-          smoothness: { value: smoothness }
+          keyColor: { value: new THREE.Color(0x00ff00) }, // green
+          similarity: { value: 0.35 },
+          smoothness: { value: 0.1 }
         },
         vertexShader: `
           varying vec2 vUv;
@@ -106,16 +114,19 @@
           varying vec2 vUv;
           void main() {
             vec4 color = texture2D(map, vUv);
-            float Y1 = 0.2989*color.r + 0.5866*color.g + 0.1145*color.b;
-            float Cr1 = color.r - Y1;
-            float Cb1 = color.b - Y1;
 
-            float Y2 = 0.2989*keyColor.r + 0.5866*keyColor.g + 0.1145*keyColor.b;
-            float Cr2 = keyColor.r - Y2;
-            float Cb2 = keyColor.b - Y2;
+            float Y = 0.299*color.r + 0.587*color.g + 0.114*color.b;
+            float Cb = color.b - Y;
+            float Cr = color.r - Y;
 
-            float blend = smoothstep(similarity, similarity + smoothness, distance(vec2(Cr1, Cb1), vec2(Cr2, Cb2)));
-            gl_FragColor = vec4(color.rgb, color.a * blend);
+            float Yk = 0.299*keyColor.r + 0.587*keyColor.g + 0.114*keyColor.b;
+            float Cbk = keyColor.b - Yk;
+            float Crk = keyColor.r - Yk;
+
+            float d = distance(vec2(Cr, Cb), vec2(Crk, Cbk));
+            float alpha = 1.0 - smoothstep(similarity, similarity + smoothness, d);
+
+            gl_FragColor = vec4(color.rgb, alpha);
           }
         `
       });
@@ -123,7 +134,7 @@
       const videoPlane = new THREE.Mesh(planeGeometry, chromaKeyMaterial);
       videoPlane.position.set(0, 0.1, 0.31);
       videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-      videoPlane.scale.y = -1; // flip
+      videoPlane.scale.y = -1;
       anchor.group.add(videoPlane);
 
       // Lighting
@@ -136,6 +147,22 @@
       await mindarThree.start();
       renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
+      });
+
+      // Controls
+      const similaritySlider = document.getElementById("similarity");
+      const smoothnessSlider = document.getElementById("smoothness");
+      const simVal = document.getElementById("simVal");
+      const smoothVal = document.getElementById("smoothVal");
+
+      similaritySlider.addEventListener("input", (e) => {
+        chromaKeyMaterial.uniforms.similarity.value = parseFloat(e.target.value);
+        simVal.textContent = e.target.value;
+      });
+
+      smoothnessSlider.addEventListener("input", (e) => {
+        chromaKeyMaterial.uniforms.smoothness.value = parseFloat(e.target.value);
+        smoothVal.textContent = e.target.value;
       });
     });
   </script>
