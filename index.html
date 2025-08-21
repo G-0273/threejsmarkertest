@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR Projection - Green Screen Key</title>
+  <title>AR Projection with Chroma Key</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.143.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
   <style>
@@ -12,7 +12,6 @@
       padding: 0;
       overflow: hidden;
       touch-action: none;
-      background: black;
     }
     #container {
       width: 100vw;
@@ -23,9 +22,6 @@
       width: 100% !important;
       height: 100% !important;
       object-fit: cover;
-    }
-    video {
-      display: none;
     }
   </style>
 </head>
@@ -58,29 +54,42 @@
       const planeGeometry = new THREE.PlaneGeometry(1.5, 1);
 
       // Video element
-      const video = document.createElement("video");
+      const video = document.createElement('video');
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      video.setAttribute("webkit-playsinline", "");
-      video.src = "./greenscreencircuit.mov"; // your greenscreen file
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('playsinline', '');
+      video.style.position = 'absolute';
+      video.style.opacity = '0';
+      video.style.zIndex = '-1000';
+      video.style.pointerEvents = 'none';
       document.body.appendChild(video);
+
+      // Pick your green/blue screen video here
+      let videoSrc = "./greenscreencircuit.mp4";
+      video.src = videoSrc;
+      video.load();
       await video.play();
 
       const videoTexture = new THREE.VideoTexture(video);
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      videoTexture.format = THREE.RGBAFormat;
 
-      // Chroma key shader
+      // Chroma key shader (for green screen; change keyColor if using blue)
+      const keyColor = new THREE.Color(0x00ff00); // green
+      const similarity = 0.4;  // adjust how close colors need to be
+      const smoothness = 0.1;  // edge smoothing
+
       const chromaKeyMaterial = new THREE.ShaderMaterial({
         transparent: true,
         side: THREE.DoubleSide,
         uniforms: {
           map: { value: videoTexture },
-          keyColor: { value: new THREE.Color(0x00ff00) }, // pure green
-          similarity: { value: 0.35 }, // how close to green gets removed
-          smoothness: { value: 0.1 },  // feather edges
+          keyColor: { value: keyColor },
+          similarity: { value: similarity },
+          smoothness: { value: smoothness }
         },
         vertexShader: `
           varying vec2 vUv;
@@ -98,13 +107,15 @@
           void main() {
             vec4 color = texture2D(map, vUv);
             float Y1 = 0.2989*color.r + 0.5866*color.g + 0.1145*color.b;
-            float Cr1 = 0.7132*(color.r - Y1);
-            float Cb1 = 0.5647*(color.b - Y1);
+            float Cr1 = color.r - Y1;
+            float Cb1 = color.b - Y1;
+
             float Y2 = 0.2989*keyColor.r + 0.5866*keyColor.g + 0.1145*keyColor.b;
-            float Cr2 = 0.7132*(keyColor.r - Y2);
-            float Cb2 = 0.5647*(keyColor.b - Y2);
+            float Cr2 = keyColor.r - Y2;
+            float Cb2 = keyColor.b - Y2;
+
             float blend = smoothstep(similarity, similarity + smoothness, distance(vec2(Cr1, Cb1), vec2(Cr2, Cb2)));
-            gl_FragColor = vec4(color.rgb, blend);
+            gl_FragColor = vec4(color.rgb, color.a * blend);
           }
         `
       });
@@ -112,7 +123,7 @@
       const videoPlane = new THREE.Mesh(planeGeometry, chromaKeyMaterial);
       videoPlane.position.set(0, 0.1, 0.31);
       videoPlane.rotation.set(-Math.PI / 2 - THREE.MathUtils.degToRad(45), 0, 0);
-      videoPlane.scale.y = -1;
+      videoPlane.scale.y = -1; // flip
       anchor.group.add(videoPlane);
 
       // Lighting
